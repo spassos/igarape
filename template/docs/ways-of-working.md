@@ -56,7 +56,7 @@ Os subagents (`.codex/agents/`) são acionados pelas skills ou explicitamente:
 | Migrações reversíveis e fiéis aos modelos | `tests/integration/test_migrations.py` (Postgres) | CI |
 | Autenticação, escopos e BOLA | `require_scopes`, `TokenVerifier`, `tests/api/test_security.py` | `make test-unit`, CI |
 | Exposição e configuração da API | problem+json, headers de segurança, `/docs` só local/test, limite de corpo | `make test-unit`, CI |
-| DAST passivo | OWASP ZAP baseline | CD (staging) |
+| DAST passivo | OWASP ZAP baseline (`.zap/rules.tsv`: FAIL bloqueia produção, WARN só relata; sem token, cobre `/health` e o 401 de `/v1`) | CD (staging, job `dast`) |
 | Rate limiting | API gateway (fora da aplicação) | plataforma |
 | Vulnerabilidades em dependências | pip-audit (lockfile completo), Dependabot | CI, semanal |
 | Código inseguro | Ruff `S` (Bandit) | pre-commit, CI |
@@ -72,7 +72,8 @@ Os subagents (`.codex/agents/`) são acionados pelas skills ou explicitamente:
    `deploy.yml` em **staging** → `scripts/smoke.py` confirma que `/health/live` responde a versão
    (SHA) recém-publicada e `/health/ready` está 200 → OWASP ZAP baseline (scan passivo) contra
    staging → **production** (aprovação no GitHub Environment) → mesma verificação → rollback
-   automático se falhar.
+   automático se falhar. Um alerta FAIL do ZAP não faz rollback de staging (a versão já foi
+   verificada); apenas impede a promoção para produção. Relatório no artefato `zap-staging-report`.
 3. Com a variável de repositório `ENABLE_RELEASES=true`, `release.yml` (release-please) mantém o PR de release com CHANGELOG e versionamento semântico.
 
 As duas variáveis são independentes. Para projetos existentes que adotarem esta versão com

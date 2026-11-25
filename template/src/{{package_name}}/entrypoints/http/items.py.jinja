@@ -19,7 +19,7 @@ router = APIRouter(prefix="/items", tags=["items"])
 @router.post(
     "",
     status_code=status.HTTP_201_CREATED,
-    responses=problem_responses(401, 403, 413, 422, 500),
+    responses=problem_responses(400, 401, 403, 413, 422, 500),
 )
 async def create_item(
     body: ItemIn,

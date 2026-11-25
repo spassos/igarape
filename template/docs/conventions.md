@@ -64,6 +64,10 @@ JWKS, emissor e audiência.
 | Migrações | `tests/integration/test_migrations.py` | testcontainers (só com Postgres) | upgrade → downgrade → upgrade; modelos = migrações |
 | DAST | CD (staging) | OWASP ZAP baseline | scan passivo da versão implantada |
 
+Contrato e propriedades usam Hypothesis derandomizado (`derandomize=True`, sem banco de exemplos,
+sem deadline): a mesma entrada em toda execução. Lacunas conhecidas do OpenAPI ficam explícitas em
+`UNDOCUMENTED_STATUS_CODES` (hoje vazia) e um teste falha quando a rota passa a documentá-las.
+
 Unit, propriedades, API, segurança e contrato rodam em `make test-unit`. Decisões em
 [ADR 0004](adr/0004-estrategia-de-testes.md).
 

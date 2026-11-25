@@ -40,9 +40,9 @@ CHECKS = [
 # Responses the app really returns but OpenAPI does not declare yet, by operation. Remove an entry
 # once the route declares it; `test_known_gaps_are_still_undocumented` enforces that.
 # POST /v1/items: a body that is not decodable JSON is rejected with 400 before validation.
-UNDOCUMENTED_STATUS_CODES: Mapping[str, frozenset[int]] = {
-    "POST /v1/items": frozenset({400}),
-}
+# Status codes an operation may return but does not document yet. Keep it empty: a test fails
+# as soon as a listed gap gets documented, so the list cannot go stale.
+UNDOCUMENTED_STATUS_CODES: Mapping[str, frozenset[int]] = {}
 CONTRACT = settings(
     max_examples=30,
     derandomize=True,
