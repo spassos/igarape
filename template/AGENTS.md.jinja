@@ -39,7 +39,7 @@ Always use `uv` (`uv add <pkg>`, `uv add --dev <pkg>`); never `pip install`. Nev
 | 5. Review | `$review` | Review report, fixes | No blocking findings |
 | 6. Ship | `$ship` | Merge with green CI; follow enabled delivery jobs | With CD enabled, verify the deployed version and readiness |
 
-Subagent roles{% if 'codex' in agents %} (Codex: `.codex/agents/`){% endif %} include `architect` for design, `test_engineer` for tests,
+Subagent roles{% if 'codex' in agents %} (Codex: `.codex/agents/`){% endif %}{% if 'claude' in agents %} (Claude Code: `.claude/agents/`, hyphenated names){% endif %}{% if 'copilot' in agents %} (Copilot: `.github/agents/`){% endif %} include `architect` for design, `test_engineer` for tests,
 `reviewer` for correctness, and `security_auditor` for security. Use them when the task benefits
 from independent analysis.
 

@@ -76,7 +76,8 @@ Configuração no GitHub:
   variável `APP_URL` e o segredo `KUBECONFIG_DATA` (base64) — ou adapte `scripts/deploy.sh` à sua
   plataforma mantendo o contrato `deploy|rollback`.
 - Branch protection em `main`: PR obrigatório, checks do CI obrigatórios, squash merge.
-- Opcional: segredo `OPENAI_API_KEY` + variável `CODEX_REVIEW=true` para review automático.
+- Opcional, review automático no PR: com Codex, segredo `OPENAI_API_KEY` + variável `CODEX_REVIEW=true`;
+  com Claude Code, segredo `ANTHROPIC_API_KEY` + variável `CLAUDE_REVIEW=true`. O Copilot tem code review nativo.
 
 ## Configuração do Codex pelo time
 

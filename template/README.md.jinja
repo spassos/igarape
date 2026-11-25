@@ -10,7 +10,7 @@ Python {{ python_version }} · FastAPI · arquitetura hexagonal
 
 ## Começando
 
-Pré-requisitos: [uv](https://docs.astral.sh/uv/), Git, make e o CLI do seu agente de código{% if 'codex' in agents %} ([Codex CLI](https://developers.openai.com/codex)){% endif %}.
+Pré-requisitos: [uv](https://docs.astral.sh/uv/), Git, make e o CLI do seu agente de código{% if 'codex' in agents %} ([Codex CLI](https://developers.openai.com/codex)){% endif %}{% if 'claude' in agents %} ([Claude Code](https://code.claude.com)){% endif %}{% if 'copilot' in agents %} ([GitHub Copilot](https://github.com/features/copilot)){% endif %}.
 {% if use_postgres or use_redis or event_broker != 'none' -%}
 Este perfil usa Docker e Docker Compose.
 
@@ -47,6 +47,40 @@ Confira-os com `codex mcp list` na raiz do projeto confiável. Para servidores c
 `codex mcp login NOME`. Guarde credenciais na configuração do ambiente.
 {% endif %}
 {% endif -%}
+{% if 'claude' in agents -%}
+## Abrir no Claude Code
+
+Execute `claude` na raiz deste repositório. O `CLAUDE.md` importa o `AGENTS.md`, então as regras
+são as mesmas dos outros agentes. As skills de `.agents/skills/` aparecem em `.claude/skills/`
+(links simbólicos) e são chamadas como comandos: `/discovery` para explorar uma ideia de produto,
+`/implement` para uma correção local bem definida. Use `/agents` para ver os subagents
+(`architect`, `test-engineer`, `reviewer`, `security-auditor`). As permissões do projeto ficam em
+`.claude/settings.json`; ajustes pessoais vão em `.claude/settings.local.json`.
+{% if mcp_servers %}
+Servidores MCP configurados em `.mcp.json`: {% for name in mcp_servers %}`{{ name }}`{% if not loop.last %}, {% endif %}{% endfor %}.
+Na primeira sessão o Claude Code pede aprovação para usá-los; confira com `/mcp` (também para
+login OAuth). Credenciais ficam no seu ambiente, nunca no repositório.
+{% endif %}
+{% endif -%}
+{% if 'copilot' in agents -%}
+## Abrir no GitHub Copilot
+
+- **IDE (modo agente):** abra a pasta no VS Code (ou outra IDE com Copilot) e use o modo agente no
+  Copilot Chat. O `AGENTS.md` e as skills em `.agents/skills/` são carregados automaticamente.
+- **Agente de nuvem:** atribua uma issue ao Copilot. Antes de começar, ele executa
+  `.github/workflows/copilot-setup-steps.yml` (instala as dependências com `uv`) para poder rodar
+  `make check`. Esse workflow só vale depois de estar na branch padrão.
+- **Custom agents:** `architect`, `test_engineer`, `reviewer` e `security_auditor` ficam em
+  `.github/agents/`; escolha-os no seletor de agentes. Os de leitura não editam arquivos.
+- **Code review:** o Copilot code review lê o `AGENTS.md` no GitHub; nas IDEs usa
+  `.github/copilot-instructions.md`, que aponta para ele.
+{%- if mcp_servers %}
+- **MCP:** o VS Code lê `.vscode/mcp.json` e o Copilot CLI lê `.github/mcp.json`. Para o agente de
+  nuvem e o code review, cadastre os mesmos servidores nas configurações do repositório no GitHub.
+  Credenciais ficam em secrets, nunca no repositório.
+{%- endif %}
+
+{% endif -%}
 ## Como trabalhamos
 
 Para uma correção local bem definida, comece em `$implement` com um teste de regressão. Mudanças
@@ -79,6 +113,12 @@ docs/{product,specs,adr}
 .agents/skills/    skills por fase do SDLC, compartilhadas entre agentes
 {%- if 'codex' in agents %}
 .codex/            config do Codex + subagents
+{%- endif %}
+{%- if 'claude' in agents %}
+.claude/           skills (links), subagents e permissões do Claude Code
+{%- endif %}
+{%- if 'copilot' in agents %}
+.github/agents/    subagents do GitHub Copilot (+ copilot-setup-steps.yml)
 {%- endif %}
 ```
 

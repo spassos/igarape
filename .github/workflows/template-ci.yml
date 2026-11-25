@@ -24,7 +24,12 @@ jobs:
       - name: Generate and start the default API
         run: uv run pytest -m smoke
       - name: Generated workflows security (zizmor)
-        run: uvx zizmor --offline --min-severity medium template/.github/workflows .github/workflows
+        # Conditional workflow files only get a .yml name once rendered, so scan a project
+        # generated with every agent as well as this repository's own workflows.
+        run: |
+          uv run igarape new "$RUNNER_TEMP/all-agents" --template . \
+            --agent claude --agent codex --agent copilot --agent opencode
+          uvx zizmor --offline --min-severity medium "$RUNNER_TEMP/all-agents/.github/workflows" .github/workflows
 
   generated-project:
     name: make check (${{ matrix.scenario }})

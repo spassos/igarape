@@ -10,7 +10,7 @@ description: Deliver a reviewed change through the repository's enabled workflow
    (`feat(items): ...`) — it becomes the squash commit and drives the version bump.
 3. CI must be green: quality (ruff, mypy, import-linter), tests + coverage, security (pip-audit,
    gitleaks, zizmor), image build + Trivy, PR title. Optional agent review comment
-   (for example `codex-review.yml`), when enabled. Address findings; never re-run hoping for a different result.
+   (`codex-review.yml` or `claude-review.yml`), when enabled. Address findings; never re-run hoping for a different result.
 4. Human approval → squash merge to `main`.
 5. Watch the main CI run. With CD disabled, a merged change with green CI completes delivery.
 6. When the repository variable `ENABLE_CD` is `true`, follow the image publication, staging and
