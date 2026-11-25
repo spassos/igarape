@@ -31,6 +31,18 @@ about them (`DirtyLocalWarning`). Use `--ref` to render another revision.
 CI runs all of them (see [`template-ci.yml`](.github/workflows/template-ci.yml)), plus zizmor on
 the generated workflows and an image build, smoke test and Trivy scan of generated services.
 
+### Test policy
+
+- **Every new feature and every bug fix comes with automated tests** in the same pull request.
+  A bug fix starts with a test that reproduces the bug. Pull requests without tests for the
+  behaviour they add or change are not merged.
+- Template changes are covered at the level they affect: rendering/layout in
+  `tests/test_template.py`, an agent adapter in `tests/test_agent_<agent>.py`, CLI input in
+  `tests/test_cli.py` and the property-based `tests/test_cli_properties.py`, delivery policy in
+  `tests/test_delivery.py`. Generated-service changes add tests inside `template/tests/` and must
+  keep `make check` (coverage ≥ 90%) green in every scenario.
+- CI must be green before merging; tests are never skipped, weakened or deleted to get green.
+
 ## Rules
 
 - **Every scenario must pass its own gate.** A change to `template/` is done when
