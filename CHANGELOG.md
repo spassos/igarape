@@ -5,6 +5,26 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). Security fixes are listed under **Security** with
 their advisory or CVE identifier.
 
+## [0.2.0](https://github.com/spassos/igarape/compare/v0.1.0...v0.2.0) (2026-11-25)
+
+
+### Added
+
+* commit the scaffold and let Claude Code commit with git ([98c9638](https://github.com/spassos/igarape/commit/98c96382ea995fc8faec709c5d195b1766cda3e0))
+* **site:** add the landing page on GitHub Pages ([9238b35](https://github.com/spassos/igarape/commit/9238b35ba521cd94412d2f3667f0eb09e08cca78))
+
+
+### Fixed
+
+* **template:** keep local variables out of exception logs ([9dc0525](https://github.com/spassos/igarape/commit/9dc0525637ed02fa3875a97afdc711ea96396dbc))
+* **template:** render the reference spec for the chosen integrations ([4cec4ec](https://github.com/spassos/igarape/commit/4cec4ece0f760685f5076b5576e3ae93b90d2a80))
+
+
+### Changed
+
+* **readme:** add a "Why Igarapé" section ([2c9cb04](https://github.com/spassos/igarape/commit/2c9cb04a6bc8a90a213b1684999b4cc46ef723a8))
+* **readme:** merge "What you get" into "Why Igarapé" ([52c4bf4](https://github.com/spassos/igarape/commit/52c4bf4ad06aaa1c55383eee1ec1d6e1f7dd2470))
+
 ## [Unreleased]
 
 ### Added
