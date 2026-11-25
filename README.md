@@ -21,14 +21,32 @@
 
 # Igarapé
 
-**Igarapé** is a CLI that generates Python service repositories ready for coding agents. One
-command gives you a FastAPI service, one development process written once for every agent
-(Codex, Claude Code, GitHub Copilot, OpenCode), one quality gate (`make check`) and a CI/CD
-pipeline that only calls a release done when the new version is verified live. Generated projects
-stay connected to the template, so `copier update` brings later improvements.
+**Igarapé** is a CLI that generates Python service repositories ready for coding agents.
 
 > **Status:** early development, not yet on PyPI. Install from Git (below). See the
 > [Roadmap](#roadmap).
+
+## Why Igarapé
+
+Coding agents write code fast. Without a shared process they also ship unspecified behavior,
+untested requirements and unreviewed security, and every team configures its agent differently.
+
+Igarapé is a **golden path for Python services built with coding agents**: one command creates a
+production-ready repository where the process, the quality bar and the delivery pipeline are
+already in place, whichever agent the team uses.
+
+| What you get | How it is enforced |
+|---|---|
+| **One SDLC for every agent.** Six phases (Discovery → Specify → Plan → Implement → Review → Ship), each a skill that produces a versioned artifact and ends at a gate: human approval of the PRD, spec, plan and merge; a green `make check` and no blocking review findings in between. | The same `AGENTS.md` and `.agents/skills/` are read by Codex, Claude Code, GitHub Copilot and OpenCode; each agent gets only a thin adapter generated from the same source. |
+| **A real service, not a blank repo.** FastAPI with hexagonal architecture, in-memory by default, with optional PostgreSQL, Redis and Kafka/RabbitMQ integrations, plus an outbound HTTP client with timeouts and retries. | `import-linter` keeps the layers apart; integrations are generated only when chosen, with no dead code. |
+| **Quality gates the agent cannot talk its way around.** | `make check` runs lint, `mypy --strict`, architecture checks, dependency audit and the full test suite with a coverage floor, identically on a laptop, in an agent session and in CI. |
+| **Security by default.** OWASP API Top 10 controls: JWT/OIDC, owner-scoped objects, RFC 9457 errors, request limits, SSRF guard. | Security, contract (Schemathesis) and property (Hypothesis) tests ship with the service. |
+| **Delivery verified in production (optional).** | With CD enabled, a release is done only when the smoke test confirms the deployed commit SHA and readiness; otherwise it rolls back. |
+| **Projects keep improving.** | Generated repositories stay linked to the template; `copier update` brings later improvements. |
+
+Igarapé does not replace your coding agent or invent new tooling. It combines established tools
+(uv, Ruff, mypy, pytest, FastAPI, SQLAlchemy, FastStream, Copier, GitHub Actions) into one lean,
+agent-neutral path from idea to production.
 
 ## Quick start
 
