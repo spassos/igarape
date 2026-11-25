@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy import Column, DateTime, MetaData, String, Table, Uuid, insert, select, text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
-from {{ package_name }}.domain.items import NAME_MAX_LENGTH, Item
+from {{ package_name }}.domain.items import NAME_MAX_LENGTH, OWNER_ID_MAX_LENGTH, Item
 
 metadata = MetaData()
 
@@ -14,6 +14,7 @@ items_table = Table(
     metadata,
     Column("id", Uuid, primary_key=True),
     Column("name", String(NAME_MAX_LENGTH), nullable=False),
+    Column("owner_id", String(OWNER_ID_MAX_LENGTH), nullable=False, index=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
@@ -39,7 +40,9 @@ class PostgresItemRepository:
         """Insert the item in its own transaction."""
         async with self._engine.begin() as conn:
             await conn.execute(
-                insert(items_table).values(id=item.id, name=item.name, created_at=item.created_at)
+                insert(items_table).values(
+                    id=item.id, name=item.name, owner_id=item.owner_id, created_at=item.created_at
+                )
             )
 
     async def get(self, item_id: UUID) -> Item | None:
@@ -49,4 +52,4 @@ class PostgresItemRepository:
             row = result.one_or_none()
         if row is None:
             return None
-        return Item(id=row.id, name=row.name, created_at=row.created_at)
+        return Item(id=row.id, name=row.name, owner_id=row.owner_id, created_at=row.created_at)

@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 import pytest
 from fastapi.testclient import TestClient
 
+from {{ package_name }}.adapters.jwt_verifier import DenyAllTokenVerifier
 from {{ package_name }}.application.items import ItemService
 from {{ package_name }}.config import Settings
 from {{ package_name }}.container import Container
@@ -21,14 +22,22 @@ def test_live_reports_version(client: TestClient) -> None:
 def test_ready_reflects_dependencies(service: ItemService, healthy: bool, status: int) -> None:
     async def check() -> None:
         if not healthy:
-            raise ConnectionError
+            raise ConnectionError("postgres.internal:5432 refused")
 
     @asynccontextmanager
     async def factory(_: Settings) -> AsyncIterator[Container]:
-        yield Container(items=service, health_checks={"db": check})
+        yield Container(
+            items=service, health_checks={"db": check}, token_verifier=DenyAllTokenVerifier()
+        )
 
-    with TestClient(create_app(Settings(env="test"), container_factory=factory)) as client:
+    settings = Settings(env="test", version="test-sha")
+    with TestClient(create_app(settings, container_factory=factory)) as client:
         response = client.get("/health/ready")
 
     assert response.status_code == status
-    assert response.json()["checks"] == {"db": "ok" if healthy else "error"}
+    # Dependency names and ok/error only: no exception text, hosts or versions.
+    assert response.json() == {
+        "status": "ok" if healthy else "error",
+        "version": "test-sha",
+        "checks": {"db": "ok" if healthy else "error"},
+    }

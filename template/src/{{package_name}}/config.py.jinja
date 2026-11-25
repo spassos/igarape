@@ -1,11 +1,19 @@
 """Typed settings loaded from environment variables (prefix ``APP_``)."""
 
-from typing import Literal
-{# blank line between stdlib and third-party imports #}
-{%- if use_postgres or use_redis or event_broker != 'none' %}
-from pydantic import SecretStr
-{%- endif %}
+from typing import Literal, Self
+from urllib.parse import urlsplit
+
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DEPLOYED_ENVS = frozenset({"staging", "production"})
+# Asymmetric algorithms only: HS* needs a shared secret and "none" is never acceptable.
+ASYMMETRIC_ALGORITHMS = frozenset(
+    {"RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512", "EdDSA"}
+)
+DEV_AUTH_ISSUER = "urn:{{ project_slug }}:dev"
+DEV_AUTH_AUDIENCE = "{{ project_slug }}"
+DEV_SECRET_MIN_LENGTH = 32
 
 
 class Settings(BaseSettings):
@@ -17,6 +25,17 @@ class Settings(BaseSettings):
     version: str = "0.0.0-dev"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     cache_ttl_seconds: int = 300
+    max_body_bytes: int = Field(default=1_048_576, gt=0)
+    # Authentication: bearer JWTs from an OIDC provider, verified against its JWKS.
+    auth_jwks_url: str | None = None
+    auth_issuer: str | None = None
+    auth_audience: str | None = None
+    auth_algorithms: list[str] = Field(default_factory=lambda: ["RS256"])
+    # Claim holding the granted scopes: "scope" (space-delimited; falls back to "scp"),
+    # or e.g. "permissions" (Auth0). Strings are split on spaces; lists are used as-is.
+    auth_scopes_claim: str = Field(default="scope", min_length=1)
+    # HS256 shared secret for `make token`; honoured only when env is local or test.
+    auth_dev_secret: SecretStr | None = None
 {%- if use_postgres %}
     database_url: SecretStr = SecretStr("postgresql+asyncpg://app:app@localhost:5432/app")
 {%- endif %}
@@ -29,7 +48,61 @@ class Settings(BaseSettings):
     broker_url: SecretStr = SecretStr("amqp://guest:guest@localhost:5672/")
 {%- endif %}
 
+    @field_validator(
+        "auth_jwks_url", "auth_issuer", "auth_audience", "auth_dev_secret", mode="before"
+    )
+    @classmethod
+    def _blank_is_unset(cls, value: object) -> object:
+        """Treat ``APP_AUTH_X=`` (e.g. an unset compose variable) as not configured."""
+        return None if value == "" else value
+
+    @field_validator("auth_algorithms")
+    @classmethod
+    def _asymmetric_only(cls, value: list[str]) -> list[str]:
+        """Never accept ``none`` or HMAC algorithms for provider-issued tokens."""
+        if not value or not set(value) <= ASYMMETRIC_ALGORITHMS:
+            allowed = ", ".join(sorted(ASYMMETRIC_ALGORITHMS))
+            raise ValueError(f"auth_algorithms must be a non-empty subset of: {allowed}")
+        return value
+
+    @model_validator(mode="after")
+    def _check_auth(self) -> Self:
+        """Fail fast on unsafe or incomplete authentication settings."""
+        if self.env in DEPLOYED_ENVS:
+            if self.auth_dev_secret is not None:
+                raise ValueError(f"APP_AUTH_DEV_SECRET must not be set when env is {self.env}")
+            if not (self.auth_jwks_url and self.auth_issuer and self.auth_audience):
+                raise ValueError(
+                    f"APP_AUTH_JWKS_URL, APP_AUTH_ISSUER and APP_AUTH_AUDIENCE are required "
+                    f"when env is {self.env}"
+                )
+        if self.auth_jwks_url is not None:
+            self._check_jwks(self.auth_jwks_url)
+        elif self.auth_dev_secret is not None:
+            if len(self.auth_dev_secret.get_secret_value()) < DEV_SECRET_MIN_LENGTH:
+                raise ValueError(
+                    f"APP_AUTH_DEV_SECRET needs at least {DEV_SECRET_MIN_LENGTH} characters "
+                    "(openssl rand -hex 32)"
+                )
+            self.auth_issuer = self.auth_issuer or DEV_AUTH_ISSUER
+            self.auth_audience = self.auth_audience or DEV_AUTH_AUDIENCE
+        return self
+
+    def _check_jwks(self, jwks_url: str) -> None:
+        if self.auth_dev_secret is not None:
+            raise ValueError("Set either APP_AUTH_JWKS_URL or APP_AUTH_DEV_SECRET, not both")
+        if not (self.auth_issuer and self.auth_audience):
+            raise ValueError("APP_AUTH_ISSUER and APP_AUTH_AUDIENCE are required with a JWKS URL")
+        scheme = urlsplit(jwks_url).scheme
+        if scheme != "https" and not (scheme == "http" and self.env not in DEPLOYED_ENVS):
+            raise ValueError("APP_AUTH_JWKS_URL must use https")
+
     @property
     def json_logs(self) -> bool:
         """Emit JSON logs everywhere except on a developer machine."""
         return self.env != "local"
+
+    @property
+    def docs_enabled(self) -> bool:
+        """Expose /docs, /redoc and /openapi.json only outside deployed environments."""
+        return self.env not in DEPLOYED_ENVS

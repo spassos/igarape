@@ -1,0 +1,45 @@
+"""Mint a local development bearer token (HS256) signed with ``APP_AUTH_DEV_SECRET``.
+
+``make token sub=alice scopes="items:read items:write"``. Works only when ``APP_ENV`` is
+``local`` or ``test``; deployed environments verify provider tokens against a JWKS instead.
+"""
+
+import argparse
+import sys
+from datetime import UTC, datetime, timedelta
+
+import jwt
+
+from {{ package_name }}.adapters.jwt_verifier import DEV_ALGORITHM
+from {{ package_name }}.config import Settings
+
+
+def mint(settings: Settings, subject: str, scopes: str, ttl_minutes: int) -> str:
+    """Return a signed token accepted by the app configured with ``settings``."""
+    if settings.env not in {"local", "test"} or settings.auth_dev_secret is None:
+        raise SystemExit("Set APP_AUTH_DEV_SECRET (openssl rand -hex 32) with APP_ENV=local/test")
+    now = datetime.now(UTC)
+    claims = {
+        "sub": subject,
+        "scope": scopes,
+        "iss": settings.auth_issuer,
+        "aud": settings.auth_audience,
+        "iat": now,
+        "exp": now + timedelta(minutes=ttl_minutes),
+    }
+    return jwt.encode(claims, settings.auth_dev_secret.get_secret_value(), DEV_ALGORITHM)
+
+
+def main() -> int:
+    """CLI entry point: print the token."""
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--sub", default="alice")
+    parser.add_argument("--scopes", default="items:read items:write")
+    parser.add_argument("--ttl-minutes", type=int, default=60)
+    args = parser.parse_args()
+    sys.stdout.write(mint(Settings(), args.sub, args.scopes, args.ttl_minutes) + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

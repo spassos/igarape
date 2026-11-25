@@ -73,6 +73,10 @@ migration: ## New migration: make migration m="add orders table"
 	$(UV) alembic revision --autogenerate -m "$(m)"
 {%- endif %}
 
+.PHONY: token
+token: ## Dev bearer token (needs APP_AUTH_DEV_SECRET): make token sub=alice scopes="items:read items:write"
+	$(UV) python scripts/dev_token.py --sub "$(or $(sub),alice)" --scopes "$(or $(scopes),items:read items:write)"
+
 .PHONY: up
 up: ## Start the app and its infrastructure (compose)
 	docker compose up -d --build --wait

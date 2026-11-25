@@ -15,8 +15,9 @@ from {{ package_name }}.adapters import broker as broker_adapter
 {%- if use_postgres %}{% set _ = adapters.append('postgres') %}{% endif %}
 {%- if use_redis %}{% set _ = adapters.append('redis_cache') %}{% endif %}
 from {{ package_name }}.adapters import {{ adapters | join(', ') }}
+from {{ package_name }}.adapters.jwt_verifier import DenyAllTokenVerifier, JwtTokenVerifier
 from {{ package_name }}.application.items import ItemService
-from {{ package_name }}.application.ports import HealthCheck
+from {{ package_name }}.application.ports import HealthCheck, TokenVerifier
 from {{ package_name }}.config import Settings
 
 
@@ -26,9 +27,35 @@ class Container:
 
     items: ItemService
     health_checks: Mapping[str, HealthCheck]
+    token_verifier: TokenVerifier
 
 
 ContainerFactory = Callable[[Settings], AbstractAsyncContextManager[Container]]
+
+
+def build_token_verifier(settings: Settings) -> TokenVerifier:
+    """JWKS in every environment; the HS256 dev secret only in local/test (see Settings)."""
+    if settings.auth_jwks_url and settings.auth_issuer and settings.auth_audience:
+        return JwtTokenVerifier.from_jwks(
+            settings.auth_jwks_url,
+            issuer=settings.auth_issuer,
+            audience=settings.auth_audience,
+            algorithms=settings.auth_algorithms,
+            scopes_claim=settings.auth_scopes_claim,
+        )
+    if (
+        settings.auth_dev_secret
+        and settings.env in {"local", "test"}
+        and settings.auth_issuer
+        and settings.auth_audience
+    ):
+        return JwtTokenVerifier.from_shared_secret(
+            settings.auth_dev_secret.get_secret_value(),
+            issuer=settings.auth_issuer,
+            audience=settings.auth_audience,
+            scopes_claim=settings.auth_scopes_claim,
+        )
+    return DenyAllTokenVerifier()
 
 
 @asynccontextmanager
@@ -71,4 +98,5 @@ async def build_container(settings: Settings) -> AsyncIterator[Container]:
         yield Container(
             items=ItemService(repository, cache, publisher, settings.cache_ttl_seconds),
             health_checks=checks,
+            token_verifier=build_token_verifier(settings),
         )

@@ -1,0 +1,178 @@
+"""Bearer-token verification with PyJWT: the TokenVerifier port for OIDC/JWT providers.
+
+Two modes, picked by the composition root:
+
+* JWKS (any environment): public keys come from the provider's JWKS endpoint, cached and
+  refreshed on key rotation (unknown ``kid``), with asymmetric algorithms only.
+* Shared secret (``local``/``test`` only): HS256 tokens minted by ``make token``.
+
+Both modes require ``exp``, ``iss``, ``aud`` and ``sub``, check ``nbf`` when present and allow
+30 seconds of clock skew. In JWKS mode the token must name a ``kid`` published by the provider;
+an unknown ``kid`` triggers at most one JWKS refetch per cooldown period (30 seconds).
+"""
+
+import asyncio
+from collections.abc import Sequence
+from typing import Any
+
+import httpx
+import jwt
+import structlog
+from jwt.types import Options
+
+from {{ package_name }}.domain.errors import AuthenticationError
+from {{ package_name }}.domain.security import Principal
+
+LEEWAY_SECONDS = 30
+REQUIRED_CLAIMS = ["exp", "iss", "aud", "sub"]
+DEV_ALGORITHM = "HS256"
+DEFAULT_SCOPES_CLAIM = "scope"
+FALLBACK_SCOPES_CLAIM = "scp"
+REJECTED = "Invalid or expired bearer token"
+logger = structlog.get_logger()
+
+
+class HttpxJWKClient(jwt.PyJWKClient):
+    """PyJWKClient whose fetch goes through httpx (explicit timeout, no redirects, proxy-aware).
+
+    Caching, ``kid`` lookup and the refresh cooldown stay PyJWT's.
+    """
+
+    def fetch_data(self) -> Any:
+        """Download the JWK Set."""
+        try:
+            response = httpx.get(self.uri, headers=self.headers, timeout=self.timeout)
+            response.raise_for_status()
+            return response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise jwt.PyJWKClientConnectionError(f"Failed to fetch the JWKS: {exc}") from exc
+
+
+class JwtTokenVerifier:
+    """TokenVerifier for signed JWTs; build it with ``from_jwks`` or ``from_shared_secret``."""
+
+    def __init__(
+        self,
+        *,
+        issuer: str,
+        audience: str,
+        algorithms: Sequence[str],
+        jwks_client: jwt.PyJWKClient | None = None,
+        secret: str | None = None,
+        scopes_claim: str = DEFAULT_SCOPES_CLAIM,
+    ) -> None:
+        if (jwks_client is None) == (secret is None):
+            raise ValueError("Provide exactly one of jwks_client or secret")
+        if "none" in algorithms or (jwks_client and any(a.startswith("HS") for a in algorithms)):
+            raise ValueError("Algorithm allowlist must not contain 'none' or mix HS* with JWKS")
+        self._issuer = issuer
+        self._audience = audience
+        self._algorithms = list(algorithms)
+        self._jwks_client = jwks_client
+        self._secret = secret
+        self._scopes_claim = scopes_claim
+
+    @classmethod
+    def from_jwks(
+        cls,
+        url: str,
+        *,
+        issuer: str,
+        audience: str,
+        algorithms: Sequence[str],
+        scopes_claim: str = DEFAULT_SCOPES_CLAIM,
+        cache_seconds: float = 300,
+        refresh_cooldown_seconds: float = 30,
+        timeout_seconds: float = 5.0,
+    ) -> "JwtTokenVerifier":
+        """Verify tokens signed by keys published at a JWKS URL (asymmetric algorithms)."""
+        client = HttpxJWKClient(
+            url,
+            lifespan=cache_seconds,
+            cooldown_duration=refresh_cooldown_seconds,
+            timeout=timeout_seconds,
+        )
+        return cls(
+            issuer=issuer,
+            audience=audience,
+            algorithms=algorithms,
+            jwks_client=client,
+            scopes_claim=scopes_claim,
+        )
+
+    @classmethod
+    def from_shared_secret(
+        cls,
+        secret: str,
+        *,
+        issuer: str,
+        audience: str,
+        scopes_claim: str = DEFAULT_SCOPES_CLAIM,
+    ) -> "JwtTokenVerifier":
+        """Verify HS256 tokens signed with a shared secret (local development and tests)."""
+        return cls(
+            issuer=issuer,
+            audience=audience,
+            algorithms=[DEV_ALGORITHM],
+            secret=secret,
+            scopes_claim=scopes_claim,
+        )
+
+    async def verify(self, token: str) -> Principal:
+        """Return the token's principal or raise AuthenticationError."""
+        try:
+            header = jwt.get_unverified_header(token)
+            # Cheap checks before any key lookup: allowlisted alg, and a kid for JWKS.
+            if header.get("alg") not in self._algorithms or (
+                self._jwks_client is not None and not isinstance(header.get("kid"), str)
+            ):
+                raise AuthenticationError(REJECTED)
+            claims = jwt.decode(
+                token,
+                await self._signing_key(token),
+                algorithms=self._algorithms,
+                issuer=self._issuer,
+                audience=self._audience,
+                leeway=LEEWAY_SECONDS,
+                options=Options(require=REQUIRED_CLAIMS, enforce_minimum_key_length=True),
+            )
+        except jwt.PyJWKClientConnectionError as exc:
+            logger.warning("jwks_unavailable", error=str(exc))
+            raise AuthenticationError(REJECTED) from exc
+        except jwt.PyJWTError as exc:
+            raise AuthenticationError(REJECTED) from exc
+        if not claims["sub"]:
+            raise AuthenticationError(REJECTED)
+        return Principal(subject=claims["sub"], scopes=parse_scopes(claims, self._scopes_claim))
+
+    async def _signing_key(self, token: str) -> jwt.PyJWK | str:
+        if self._jwks_client is None:
+            return str(self._secret)
+        # PyJWKClient does blocking I/O on a cache miss: keep it off the event loop.
+        return await asyncio.to_thread(self._jwks_client.get_signing_key_from_jwt, token)
+
+
+class DenyAllTokenVerifier:
+    """Used when no authentication is configured (local runs only): every token is rejected."""
+
+    async def verify(self, token: str) -> Principal:  # noqa: ARG002 - port signature
+        """Reject every token."""
+        raise AuthenticationError("Authentication is not configured")
+
+
+def parse_scopes(claims: dict[str, Any], claim: str = DEFAULT_SCOPES_CLAIM) -> frozenset[str]:
+    """Read scopes from ``claim``: a space-delimited string or a list of strings.
+
+    With the default ``scope`` claim, ``scp`` is read when ``scope`` is absent (Entra ID,
+    Okta). Set ``APP_AUTH_SCOPES_CLAIM`` for other providers (e.g. Auth0 ``permissions``).
+    """
+    raw = claims.get(claim)
+    if raw is None and claim == DEFAULT_SCOPES_CLAIM:
+        raw = claims.get(FALLBACK_SCOPES_CLAIM)
+    if raw is None:
+        return frozenset()
+    if isinstance(raw, str):
+        return frozenset(raw.split())
+    if isinstance(raw, list) and all(isinstance(scope, str) for scope in raw):
+        return frozenset(raw)
+    raise AuthenticationError(REJECTED)

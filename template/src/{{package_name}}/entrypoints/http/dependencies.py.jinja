@@ -1,11 +1,17 @@
 """FastAPI dependencies resolved from the container."""
 
+from collections.abc import Awaitable, Callable
 from typing import Annotated, cast
 
 from fastapi import Depends, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from {{ package_name }}.application.items import ItemService
 from {{ package_name }}.container import Container
+from {{ package_name }}.domain.errors import AuthenticationError
+from {{ package_name }}.domain.security import Principal
+
+bearer = HTTPBearer(auto_error=False, description="OAuth 2.0 / OIDC access token (JWT)")
 
 
 def get_container(request: Request) -> Container:
@@ -16,6 +22,26 @@ def get_container(request: Request) -> Container:
 def get_item_service(container: Annotated[Container, Depends(get_container)]) -> ItemService:
     """Return the item use cases."""
     return container.items
+
+
+async def get_principal(
+    container: Annotated[Container, Depends(get_container)],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+) -> Principal:
+    """Authenticate the bearer token; 401 when it is missing or invalid."""
+    if credentials is None:
+        raise AuthenticationError("Missing bearer token")
+    return await container.token_verifier.verify(credentials.credentials)
+
+
+def require_scopes(*scopes: str) -> Callable[..., Awaitable[Principal]]:
+    """Dependency returning the caller, who must hold every scope (403 otherwise)."""
+
+    async def dependency(principal: Annotated[Principal, Depends(get_principal)]) -> Principal:
+        principal.require_scopes(scopes)
+        return principal
+
+    return dependency
 
 
 ContainerDep = Annotated[Container, Depends(get_container)]

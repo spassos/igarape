@@ -17,10 +17,10 @@ async def test_import_command_creates_item(service: ItemService, fakes: Fakes) -
     register_handlers(broker, service)
 
     async with {{ TestBroker }}(broker) as test_broker:
-        await test_broker.publish({"name": "book"}, IMPORT_TOPIC)
+        await test_broker.publish({"name": "book", "owner_id": "alice"}, IMPORT_TOPIC)
 
     [item] = fakes.repository.items.values()
-    assert item.name == "book"
+    assert (item.name, item.owner_id) == ("book", "alice")
     assert fakes.publisher.published[0][0] == "items.created"
 
 
@@ -30,7 +30,9 @@ async def test_invalid_command_is_rejected(service: ItemService, fakes: Fakes) -
 
     async with {{ TestBroker }}(broker) as test_broker:
         with pytest.raises(ValueError, match="name"):
-            await test_broker.publish({"name": ""}, IMPORT_TOPIC)
+            await test_broker.publish({"name": "", "owner_id": "alice"}, IMPORT_TOPIC)
+        with pytest.raises(ValueError, match="owner_id"):
+            await test_broker.publish({"name": "book"}, IMPORT_TOPIC)
 
     assert not fakes.repository.items
 

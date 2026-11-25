@@ -1,11 +1,19 @@
+import socket
 from collections.abc import Iterator
+from typing import Any
 
 import httpx
 import pytest
 import respx
 import stamina
 
-from {{ package_name }}.adapters.http_client import create_http_client, is_transient, retry_transient
+from {{ package_name }}.adapters.http_client import (
+    UnsafeURLError,
+    create_http_client,
+    ensure_public_https_url,
+    is_transient,
+    retry_transient,
+)
 
 pytestmark = pytest.mark.anyio
 BASE_URL = "https://api.example.com"
@@ -47,3 +55,62 @@ async def test_does_not_retry_client_errors() -> None:
 
 def test_unrelated_errors_are_not_transient() -> None:
     assert not is_transient(ValueError("nope"))
+
+
+def resolves_to(monkeypatch: pytest.MonkeyPatch, *addresses: str) -> None:
+    def fake_getaddrinfo(host: str, port: int, *args: Any, **kwargs: Any) -> list[Any]:
+        return [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", (address, port)) for address in addresses
+        ]
+
+    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo)
+
+
+def test_public_https_url_is_allowed(monkeypatch: pytest.MonkeyPatch) -> None:
+    resolves_to(monkeypatch, "93.184.215.14", "2606:2800:21f:cb07:6820:80da:af6b:8b2c")
+
+    assert ensure_public_https_url("https://example.com/hook") == "https://example.com/hook"
+
+
+@pytest.mark.parametrize(
+    "url", ["http://example.com/", "ftp://example.com/", "https:///path", "/relative"]
+)
+def test_non_https_urls_are_rejected(url: str) -> None:
+    with pytest.raises(UnsafeURLError):
+        ensure_public_https_url(url)
+
+
+@pytest.mark.parametrize(
+    "address",
+    [
+        "127.0.0.1",
+        "10.0.0.5",
+        "172.16.0.1",
+        "192.168.1.1",
+        "169.254.169.254",
+        "100.64.0.1",
+        "0.0.0.0",  # noqa: S104 - an address under test, not a bind
+        "224.0.0.1",
+        "240.0.0.1",
+        "::1",
+        "fe80::1",
+        "fd00::1",
+        "::ffff:127.0.0.1",
+        "ff02::1",
+    ],
+)
+def test_internal_addresses_are_rejected(monkeypatch: pytest.MonkeyPatch, address: str) -> None:
+    resolves_to(monkeypatch, "93.184.215.14", address)
+
+    with pytest.raises(UnsafeURLError, match="non-public"):
+        ensure_public_https_url("https://example.com/")
+
+
+def test_unresolvable_host_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fail(*args: Any, **kwargs: Any) -> list[Any]:
+        raise socket.gaierror("no such host")
+
+    monkeypatch.setattr(socket, "getaddrinfo", fail)
+
+    with pytest.raises(UnsafeURLError, match="resolve"):
+        ensure_public_https_url("https://does-not-exist.example/")

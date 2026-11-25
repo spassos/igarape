@@ -1,0 +1,131 @@
+"""RFC 9457 problem details: one error shape for every failure the API returns."""
+
+from collections.abc import Mapping
+from http import HTTPStatus
+from typing import Any
+
+import structlog
+from fastapi import FastAPI, Request, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException
+
+from {{ package_name }}.domain.errors import (
+    AuthenticationError,
+    DomainError,
+    ItemNotFoundError,
+    PermissionDeniedError,
+)
+from {{ package_name }}.entrypoints.http.schemas import Problem
+
+PROBLEM_MEDIA_TYPE = "application/problem+json"
+logger = structlog.get_logger()
+
+
+class ProblemResponse(JSONResponse):
+    """JSON response with the problem+json media type."""
+
+    media_type = PROBLEM_MEDIA_TYPE
+
+
+def problem(
+    status_code: int,
+    detail: str,
+    instance: str,
+    *,
+    headers: Mapping[str, str] | None = None,
+    errors: list[dict[str, Any]] | None = None,
+) -> ProblemResponse:
+    """Build a problem response; ``title`` is the standard phrase of ``status_code``."""
+    body = Problem(
+        title=HTTPStatus(status_code).phrase,
+        status=status_code,
+        detail=detail,
+        instance=instance,
+        errors=errors,
+    )
+    return ProblemResponse(
+        body.model_dump(mode="json", exclude_none=True), status_code=status_code, headers=headers
+    )
+
+
+def problem_responses(*status_codes: int) -> dict[int | str, dict[str, Any]]:
+    """OpenAPI ``responses=`` entries for the problems a route can return."""
+    responses: dict[int | str, dict[str, Any]] = {}
+    for code in status_codes:
+        entry: dict[str, Any] = {"model": Problem, "description": HTTPStatus(code).phrase}
+        if code == status.HTTP_401_UNAUTHORIZED:
+            entry["headers"] = {"WWW-Authenticate": {"schema": {"type": "string"}}}
+        responses[code] = entry
+    return responses
+
+
+def use_problem_media_type(openapi: dict[str, Any]) -> dict[str, Any]:
+    """Declare Problem responses as ``application/problem+json`` instead of JSON."""
+    ref = "#/components/schemas/Problem"
+    for path in openapi.get("paths", {}).values():
+        for operation in path.values():
+            for response in operation.get("responses", {}).values():
+                content = response.get("content", {})
+                if content.get("application/json", {}).get("schema", {}).get("$ref") == ref:
+                    content[PROBLEM_MEDIA_TYPE] = content.pop("application/json")
+    return openapi
+
+
+def install_problem_handlers(app: FastAPI) -> None:
+    """Map domain, HTTP, validation and unexpected errors to problem details."""
+
+    @app.exception_handler(AuthenticationError)
+    async def unauthenticated(request: Request, exc: AuthenticationError) -> ProblemResponse:
+        return problem(
+            status.HTTP_401_UNAUTHORIZED,
+            str(exc),
+            request.url.path,
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    @app.exception_handler(PermissionDeniedError)
+    async def forbidden(request: Request, exc: PermissionDeniedError) -> ProblemResponse:
+        scope = " ".join(sorted(exc.missing_scopes))
+        return problem(
+            status.HTTP_403_FORBIDDEN,
+            str(exc),
+            request.url.path,
+            headers={"WWW-Authenticate": f'Bearer error="insufficient_scope", scope="{scope}"'},
+        )
+
+    @app.exception_handler(ItemNotFoundError)
+    async def not_found(request: Request, exc: ItemNotFoundError) -> ProblemResponse:
+        return problem(status.HTTP_404_NOT_FOUND, str(exc), request.url.path)
+
+    @app.exception_handler(DomainError)
+    async def unprocessable(request: Request, exc: DomainError) -> ProblemResponse:
+        return problem(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc), request.url.path)
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(request: Request, exc: RequestValidationError) -> ProblemResponse:
+        # Echo where and why, never the submitted input (it may hold secrets).
+        errors = [
+            {"loc": list(error["loc"]), "msg": error["msg"], "type": error["type"]}
+            for error in exc.errors()
+        ]
+        return problem(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            "Request validation failed",
+            request.url.path,
+            errors=jsonable_encoder(errors),
+        )
+
+    @app.exception_handler(HTTPException)
+    async def http_error(request: Request, exc: HTTPException) -> ProblemResponse:
+        return problem(exc.status_code, str(exc.detail), request.url.path, headers=exc.headers)
+
+    @app.exception_handler(Exception)
+    async def unexpected(request: Request, exc: Exception) -> ProblemResponse:
+        logger.error("unhandled_error", path=request.url.path, exc_info=exc)
+        return problem(
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "An unexpected error occurred",
+            request.url.path,
+        )

@@ -21,9 +21,12 @@ def upgrade() -> None:
         "items",
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column("name", sa.String(120), nullable=False),
+        sa.Column("owner_id", sa.String(255), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
+    op.create_index("ix_items_owner_id", "items", ["owner_id"])
 
 
 def downgrade() -> None:
+    op.drop_index("ix_items_owner_id", table_name="items")
     op.drop_table("items")

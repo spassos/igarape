@@ -1,22 +1,40 @@
-"""Item endpoints."""
+"""Item endpoints (v1). Every route needs a principal; reads are scoped to its owner."""
 
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
-from {{ package_name }}.entrypoints.http.dependencies import ItemServiceDep
+from {{ package_name }}.domain.security import Principal
+from {{ package_name }}.entrypoints.http.dependencies import ItemServiceDep, require_scopes
+from {{ package_name }}.entrypoints.http.problems import problem_responses
 from {{ package_name }}.entrypoints.http.schemas import ItemIn, ItemOut
+
+ITEMS_READ = "items:read"
+ITEMS_WRITE = "items:write"
 
 router = APIRouter(prefix="/items", tags=["items"])
 
 
-@router.post("", status_code=status.HTTP_201_CREATED)
-async def create_item(body: ItemIn, items: ItemServiceDep) -> ItemOut:
-    """Create an item and publish ``items.created``."""
-    return ItemOut.model_validate(await items.create(body.name))
+@router.post(
+    "",
+    status_code=status.HTTP_201_CREATED,
+    responses=problem_responses(401, 403, 413, 422, 500),
+)
+async def create_item(
+    body: ItemIn,
+    items: ItemServiceDep,
+    principal: Annotated[Principal, Depends(require_scopes(ITEMS_WRITE))],
+) -> ItemOut:
+    """Create an item owned by the caller and publish ``items.created``."""
+    return ItemOut.model_validate(await items.create(body.name, owner_id=principal.subject))
 
 
-@router.get("/{item_id}")
-async def get_item(item_id: UUID, items: ItemServiceDep) -> ItemOut:
-    """Return one item."""
-    return ItemOut.model_validate(await items.get(item_id))
+@router.get("/{item_id}", responses=problem_responses(401, 403, 404, 422, 500))
+async def get_item(
+    item_id: UUID,
+    items: ItemServiceDep,
+    principal: Annotated[Principal, Depends(require_scopes(ITEMS_READ))],
+) -> ItemOut:
+    """Return one of the caller's items (404 for items owned by someone else)."""
+    return ItemOut.model_validate(await items.get(item_id, owner_id=principal.subject))

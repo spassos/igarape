@@ -10,6 +10,7 @@ dependencies = [
     "fastapi>=0.115",
     "httpx>=0.28",
     "pydantic-settings>=2.6",
+    "pyjwt[crypto]>=2.15",
     "stamina>=24.3",
     "structlog>=24.4",
     "uvicorn[standard]>=0.32",
@@ -128,7 +129,7 @@ name = "Domain and application stay framework-free"
 type = "forbidden"
 source_modules = ["{{ package_name }}.domain", "{{ package_name }}.application"]
 forbidden_modules = [
-    "fastapi", "httpx", "pydantic", "structlog",
+    "fastapi", "httpx", "jwt", "pydantic", "structlog",
 {%- if use_postgres %} "sqlalchemy",{% endif %}
 {%- if use_redis %} "redis",{% endif %}
 {%- if event_broker != 'none' %} "faststream",{% endif %}

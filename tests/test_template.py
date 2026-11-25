@@ -3,6 +3,7 @@
 import json
 import os
 import re
+import secrets
 import shutil
 import signal
 import subprocess
@@ -10,7 +11,7 @@ import time
 import tomllib
 from contextlib import suppress
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 import pytest
@@ -120,11 +121,16 @@ def test_generated_project_passes_its_own_gates(project: Path) -> None:
     sh(project, "make", "check")
 
 
-def request_json(url: str, payload: dict[str, str] | None = None) -> tuple[int, dict[str, object]]:
+def request_json(
+    url: str, payload: dict[str, str] | None = None, token: str | None = None
+) -> tuple[int, dict[str, object]]:
+    headers = {"Content-Type": "application/json"}
+    if token is not None:
+        headers["Authorization"] = f"Bearer {token}"
     request = Request(
         url,
         data=json.dumps(payload).encode() if payload is not None else None,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
     )
     with urlopen(request, timeout=2) as response:
         return response.status, json.load(response)
@@ -169,7 +175,15 @@ def test_default_scaffold_runs_without_docker(tmp_path: Path) -> None:
     assert (project / "uv.lock").is_file()
 
     env = {key: value for key, value in project_env().items() if not key.startswith("APP_")}
-    env.update(UVICORN_HOST="127.0.0.1", UVICORN_PORT="0")
+    env.update(UVICORN_HOST="127.0.0.1", UVICORN_PORT="0", APP_AUTH_DEV_SECRET=secrets.token_hex(32))
+    token = subprocess.run(
+        ["uv", "run", "--frozen", "python", "scripts/dev_token.py", "--sub", "alice"],
+        cwd=project,
+        env=env,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
     log = tmp_path / "api.log"
     with log.open("w") as output:
         server = subprocess.Popen(
@@ -182,10 +196,13 @@ def test_default_scaffold_runs_without_docker(tmp_path: Path) -> None:
         )
         try:
             url = wait_for_api(server, log)
-            created_status, item = request_json(f"{url}/items", {"name": "book"})
+            created_status, item = request_json(f"{url}/v1/items", {"name": "book"}, token)
             assert created_status == 201
             assert item["name"] == "book"
-            assert request_json(f"{url}/items/{item['id']}") == (200, item)
+            assert request_json(f"{url}/v1/items/{item['id']}", token=token) == (200, item)
+            with pytest.raises(HTTPError) as anonymous:
+                request_json(f"{url}/v1/items/{item['id']}")
+            assert anonymous.value.code == 401
         except Exception:
             print(log.read_text())
             raise

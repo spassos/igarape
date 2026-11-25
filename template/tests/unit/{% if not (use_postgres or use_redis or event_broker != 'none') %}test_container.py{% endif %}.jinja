@@ -8,7 +8,7 @@ pytestmark = pytest.mark.anyio
 
 async def test_build_container_wires_in_memory_adapters() -> None:
     async with build_container(Settings(env="test")) as container:
-        item = await container.items.create("book")
+        item = await container.items.create("book", owner_id="alice")
 
-        assert await container.items.get(item.id) == item
+        assert await container.items.get(item.id, owner_id="alice") == item
         assert container.health_checks == {}

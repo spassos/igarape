@@ -1,0 +1,20 @@
+"""Who is calling: the authenticated principal and its permissions."""
+
+from collections.abc import Iterable
+from dataclasses import dataclass
+
+from {{ package_name }}.domain.errors import PermissionDeniedError
+
+
+@dataclass(frozen=True, slots=True)
+class Principal:
+    """An authenticated caller: a stable subject id plus the scopes it was granted."""
+
+    subject: str
+    scopes: frozenset[str]
+
+    def require_scopes(self, required: Iterable[str]) -> None:
+        """Raise PermissionDeniedError unless every required scope was granted."""
+        missing = frozenset(required) - self.scopes
+        if missing:
+            raise PermissionDeniedError(missing)

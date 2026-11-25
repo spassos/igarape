@@ -26,6 +26,7 @@ from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 {%- endif %}
 
 from {{ package_name }}.config import Settings
+from tests.tokens import AUTH_SECRET
 {%- if use_postgres %}
 
 ROOT = Path(__file__).parents[2]
@@ -81,6 +82,7 @@ def settings({{ fixtures | join(', ') }}) -> Settings:
         {
             "env": "test",
             "version": "it-sha",
+            "auth_dev_secret": AUTH_SECRET,
 {%- if use_postgres %}
             "database_url": database_url,
 {%- endif %}

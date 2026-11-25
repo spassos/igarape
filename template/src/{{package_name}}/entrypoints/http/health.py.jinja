@@ -6,6 +6,7 @@ import structlog
 from fastapi import APIRouter, Request, Response, status
 
 from {{ package_name }}.entrypoints.http.dependencies import ContainerDep
+from {{ package_name }}.entrypoints.http.problems import problem_responses
 from {{ package_name }}.entrypoints.http.schemas import Health
 
 router = APIRouter(prefix="/health", tags=["health"])
@@ -13,13 +14,13 @@ logger = structlog.get_logger()
 CHECK_TIMEOUT_SECONDS = 2.0
 
 
-@router.get("/live")
+@router.get("/live", responses=problem_responses(500))
 async def live(request: Request) -> Health:
     """Process is up; reports the deployed version."""
     return Health(status="ok", version=request.app.version)
 
 
-@router.get("/ready")
+@router.get("/ready", responses=problem_responses(500))
 async def ready(request: Request, container: ContainerDep, response: Response) -> Health:
     """Every dependency answers; 503 otherwise."""
     results: dict[str, str] = {}

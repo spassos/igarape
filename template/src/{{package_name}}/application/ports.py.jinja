@@ -5,6 +5,7 @@ from typing import Any, Protocol
 from uuid import UUID
 
 from {{ package_name }}.domain.items import Item
+from {{ package_name }}.domain.security import Principal
 
 HealthCheck = Callable[[], Awaitable[None]]
 
@@ -38,4 +39,12 @@ class EventPublisher(Protocol):
 
     async def publish(self, topic: str, payload: Mapping[str, Any]) -> None:
         """Publish payload to topic."""
+        ...
+
+
+class TokenVerifier(Protocol):
+    """Turns a bearer token into the authenticated caller."""
+
+    async def verify(self, token: str) -> Principal:
+        """Return the principal; raise AuthenticationError when the token is not acceptable."""
         ...
