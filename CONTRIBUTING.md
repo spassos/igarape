@@ -55,10 +55,11 @@ the generated workflows and an image build, smoke test and Trivy scan of generat
 
   Conditional workflow files only get a `.yml` name once rendered, so also scan a project
   generated with `--agent claude --agent codex --agent copilot --agent opencode`.
-- **Base images are pinned by digest.** The generated `Dockerfile` reads them from
-  [`includes/image_digests.jinja`](includes/image_digests.jinja); generated projects keep them
-  current with Dependabot. Refresh the template's starting point before a release with
-  `uv run python scripts/refresh_image_digests.py > includes/image_digests.jinja`.
+- **Base images are pinned by digest.** [`template/Dockerfile.jinja`](template/Dockerfile.jinja)
+  has one literal `FROM image:tag@sha256:...` per Python version (Jinja picks one; keep each `FROM`
+  free of Jinja so Scorecard can parse it). Generated projects keep them current with Dependabot.
+  Refresh before a release with `uv run python scripts/refresh_image_digests.py` (`--check` only
+  reports stale digests).
 - **Language:** agent-facing files (AGENTS.md, skills, subagents) are English; generated human
   docs are Portuguese; this repository's own docs are English.
 

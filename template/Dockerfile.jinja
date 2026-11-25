@@ -1,10 +1,15 @@
-{%- from 'includes/image_digests.jinja' import image_digests -%}
-{%- set digests = image_digests[python_version] -%}
 # syntax=docker/dockerfile:1
 # Multi-stage build following https://docs.astral.sh/uv/guides/integration/docker/
-# Base images are pinned by digest; Dependabot (docker ecosystem) keeps them current.
+# Base images are pinned by digest (one FROM per Python version, refreshed with the template's
+# scripts/refresh_image_digests.py); Dependabot (docker ecosystem) keeps them current.
 
-FROM ghcr.io/astral-sh/uv:python{{ python_version }}-trixie-slim@{{ digests.uv }} AS build
+{% if python_version == "3.12" -%}
+FROM ghcr.io/astral-sh/uv:python3.12-trixie-slim@sha256:a3fdff607889036fef414975e3701d14a2b6734ffec10cbdd5ce60d2b6c8853a AS build
+{%- elif python_version == "3.13" -%}
+FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim@sha256:00e2b362982a5ce19eb3a51453ed76af92ccaaedccc0236fae83b27d994ae0f3 AS build
+{%- else -%}
+FROM ghcr.io/astral-sh/uv:python3.14-trixie-slim@sha256:b093dbbd7963c765325ecdf866d42915f5327e135569f9dae9c77cac63559bf2 AS build
+{%- endif %}
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=0
 WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -15,7 +20,13 @@ COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable
 
-FROM python:{{ python_version }}-slim-trixie@{{ digests.python }} AS runtime
+{% if python_version == "3.12" -%}
+FROM python:3.12-slim-trixie@sha256:191083cdf6c7bda8c76158983163ead5d5cf7b77cf3033e805bb0f5296f51b4b AS runtime
+{%- elif python_version == "3.13" -%}
+FROM python:3.13-slim-trixie@sha256:7249d5587b78209a006dc4a3b5340678f84ea729239193aa559962cd8c1fce50 AS runtime
+{%- else -%}
+FROM python:3.14-slim-trixie@sha256:22eafb370920ad8b429e0aec3fff433e0669968519f5d60469d83729c138b28b AS runtime
+{%- endif %}
 ARG APP_VERSION=dev
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \

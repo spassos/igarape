@@ -28,3 +28,11 @@ def test_base_images_are_pinned_by_digest(tmp_path: Path, python_version: str) -
     assert len(froms) == len(pinned) == 2, froms
     assert {image for image, _ in pinned} == {"ghcr.io/astral-sh/uv", "python"}
     assert all(python_version in tag for _, tag in pinned)
+
+
+def test_template_dockerfile_from_lines_stay_parseable_and_pinned() -> None:
+    """OpenSSF Scorecard parses `template/Dockerfile.jinja` itself: every FROM must be literal."""
+    template = (ROOT / "template" / "Dockerfile.jinja").read_text()
+    froms = [line for line in template.splitlines() if line.upper().startswith("FROM ")]
+    assert len(froms) == 6, froms  # two stages x three Python versions
+    assert all(PINNED_FROM.fullmatch(line) for line in froms), froms
