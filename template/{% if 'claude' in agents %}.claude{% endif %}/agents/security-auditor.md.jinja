@@ -1,0 +1,10 @@
+{%- from 'includes/roles.jinja' import roles -%}
+{%- set role = roles.security_auditor -%}
+---
+name: security-auditor
+description: {{ role.description | to_json(ensure_ascii=False) }}
+{%- if role.access == 'read-only' %}
+disallowedTools: Edit, Write, NotebookEdit
+{%- endif %}
+---
+{{ role.instructions | trim }}

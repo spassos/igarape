@@ -1,0 +1,10 @@
+@AGENTS.md
+
+## Claude Code
+
+- Skills: `.claude/skills/` links to the shared `.agents/skills/`; a `$skill` mention in AGENTS.md
+  is the `/skill` command here (e.g. `/implement`).
+- Subagents: `.claude/agents/` (`architect`, `test-engineer`, `reviewer`, `security-auditor`): the
+  subagent roles of AGENTS.md, with hyphens instead of underscores.
+- Project permissions live in `.claude/settings.json`; personal overrides go in
+  `.claude/settings.local.json` (not committed).
