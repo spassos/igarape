@@ -9,7 +9,11 @@
       "Bash(make typecheck)",
       "Bash(make arch)",
       "Bash(make audit)",
-      "Bash(uv run pytest *)"
+      "Bash(uv run pytest *)",
+      "Bash(git *)"
+    ],
+    "ask": [
+      "Bash(git push *)"
     ],
     "deny": [
       "Read(./.env)",

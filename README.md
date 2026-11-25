@@ -64,8 +64,9 @@ Then open the directory with your coding agent. It reads `AGENTS.md` first.
 ## How it works
 
 `igarape new` validates the options, renders the Copier template, locks the dependencies with
-`uv lock` and initializes a Git repository. The agent guidance is written once in a shared core;
-each selected agent gets only a thin adapter in the format it reads. Details:
+`uv lock`, initializes a Git repository and commits the scaffold (skipped with a hint when Git
+has no user identity). The agent guidance is written once in a shared core; each selected agent
+gets only a thin adapter in the format it reads. Details:
 [`docs/architecture.md`](docs/architecture.md).
 
 ```mermaid

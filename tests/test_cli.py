@@ -1,4 +1,5 @@
 import ast
+import os
 import subprocess
 import tomllib
 from pathlib import Path
@@ -81,3 +82,44 @@ def test_cli_rejects_unknown_agent(tmp_path: Path) -> None:
     )
     assert result.returncode != 0 and b"--agent" in result.stderr
     assert not project.exists()
+
+
+def git_env(tmp_path: Path, config: str) -> dict[str, str]:
+    global_config = tmp_path / "gitconfig"
+    global_config.write_text(config)
+    env = {k: v for k, v in os.environ.items() if not k.startswith("GIT_")}
+    return {**env, "GIT_CONFIG_GLOBAL": str(global_config), "GIT_CONFIG_NOSYSTEM": "1"}
+
+
+def test_cli_commits_the_scaffold_when_git_has_an_identity(tmp_path: Path) -> None:
+    project = tmp_path / "orders"
+    env = git_env(tmp_path, "[user]\n\tname = Dev\n\temail = dev@example.invalid\n")
+
+    subprocess.run(["igarape", "new", str(project), "--template", str(ROOT)], check=True, env=env)
+
+    log = subprocess.run(
+        ["git", "log", "--format=%s"], cwd=project, env=env, capture_output=True, text=True, check=True
+    )
+    status = subprocess.run(
+        ["git", "status", "--porcelain"], cwd=project, env=env, capture_output=True, text=True, check=True
+    )
+    assert log.stdout.splitlines() == ["chore: initial scaffold from igarape"]
+    assert status.stdout == ""
+
+
+def test_cli_still_succeeds_and_explains_when_git_cannot_commit(tmp_path: Path) -> None:
+    project = tmp_path / "orders"
+    env = git_env(tmp_path, "[user]\n\tuseConfigOnly = true\n")
+
+    result = subprocess.run(
+        ["igarape", "new", str(project), "--template", str(ROOT)],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "initial commit skipped" in result.stderr
+    assert (project / ".git").is_dir()
+    assert (project / "pyproject.toml").is_file()

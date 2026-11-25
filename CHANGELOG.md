@@ -7,6 +7,12 @@ their advisory or CVE identifier.
 
 ## [Unreleased]
 
+### Added
+
+- `igarape new` commits the generated scaffold (`chore: initial scaffold from igarape`), so the
+  first agent change starts from a clean tree. Without a Git user identity it still succeeds and
+  prints how to commit.
+
 ### Security
 
 - Generated services no longer write local variables into exception logs. `dict_tracebacks`
@@ -17,6 +23,9 @@ their advisory or CVE identifier.
 
 ### Changed
 
+- Generated Claude Code settings allow `git` (the `implement` skill commits each task) and ask
+  before `git push`. The generated README explains that project permissions apply only after the
+  folder's trust dialog is accepted, and how to pass them to headless runs.
 - Releases need no manual tagging. This repository runs release-please in `publish-pypi.yml`: the
   release PR bumps `pyproject.toml`, `uv.lock` and the manifest from Conventional Commits and adds
   the `CHANGELOG.md` entry; merging it tags `vX.Y.Z`, publishes the GitHub release and publishes

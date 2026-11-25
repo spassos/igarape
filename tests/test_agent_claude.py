@@ -73,6 +73,9 @@ def test_subagents_render_the_shared_roles(project: Path) -> None:
 def test_settings_allow_safe_targets_and_deny_secrets(project: Path) -> None:
     settings = json.loads((project / ".claude/settings.json").read_text())
     assert "Bash(make check)" in settings["permissions"]["allow"]
+    # The implement skill commits each task; publishing stays a human decision.
+    assert "Bash(git *)" in settings["permissions"]["allow"]
+    assert settings["permissions"]["ask"] == ["Bash(git push *)"]
     assert "Read(./.env)" in settings["permissions"]["deny"]
 
 

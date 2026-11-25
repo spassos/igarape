@@ -15,6 +15,16 @@ from copier.errors import CopierError
 
 TEMPLATE = "https://github.com/spassos/igarape.git"
 AGENTS = ("claude", "codex", "copilot", "opencode")
+INITIAL_COMMIT = "chore: initial scaffold from igarape"
+
+
+def initial_commit(project: Path) -> bool:
+    """Commit the generated files so the first agent change has a clean diff; False if git can't."""
+    subprocess.run(["git", "add", "-A"], cwd=project, check=True)
+    result = subprocess.run(
+        ["git", "commit", "-q", "-m", INITIAL_COMMIT], cwd=project, capture_output=True, check=False
+    )
+    return result.returncode == 0
 
 
 def mcp_server(value: str) -> tuple[str, str]:
@@ -117,10 +127,18 @@ def main() -> int:
             run_copy(source, project, vcs_ref=revision, data=answers, defaults=True, unsafe=False, quiet=True)
             subprocess.run(["uv", "lock"], cwd=project, check=True)
             subprocess.run(["git", "init", "-q", "-b", "main"], cwd=project, check=True)
+            committed = initial_commit(project)
             project.rename(path)
     except (CopierError, OSError, ValueError, subprocess.CalledProcessError) as exc:
         print(f"igarape: {exc}", file=sys.stderr)
         return 1
+
+    if not committed:
+        print(
+            "igarape: initial commit skipped (set git user.name and user.email, then run "
+            f'`git -C {path} add -A && git -C {path} commit -m "{INITIAL_COMMIT}"`)',
+            file=sys.stderr,
+        )
 
     print(f"Created {path}. Open it with your coding agent; README.md has the startup and test commands.")
     return 0
