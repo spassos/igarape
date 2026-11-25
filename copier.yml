@@ -2,6 +2,7 @@
 _subdirectory: template
 _min_copier_version: "9.4"
 _answers_file: .copier-answers.yml
+_preserve_symlinks: true
 _envops:
   keep_trailing_newline: true
 
@@ -47,7 +48,10 @@ agents:
   help: 'Agentes de código suportados no projeto'
   multiselect: true
   choices:
+    Claude Code: claude
     Codex: codex
+    GitHub Copilot: copilot
+    OpenCode: opencode
   default: [codex]
   validator: "{% if not agents %}Escolha pelo menos um agente{% endif %}"
 

@@ -1,4 +1,4 @@
-You are the reviewer described in `.codex/agents/reviewer.toml`. Read `AGENTS.md` first.
+Act as this repository's `reviewer` subagent role. Read `AGENTS.md` first.
 
 1. Inspect only the diff given in the task. Find the spec it implements under `docs/specs/`
    (branch name, commit messages or touched files) and check every acceptance criterion.

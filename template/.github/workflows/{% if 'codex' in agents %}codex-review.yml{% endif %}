@@ -36,7 +36,7 @@ jobs:
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} of ${{ github.repository }}.
             Diff: git diff ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
-            Follow the instructions in .github/codex/prompts/review.md exactly.
+            Follow the instructions in .github/review-prompt.md exactly.
 
   comment:
     needs: review

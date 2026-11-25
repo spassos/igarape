@@ -14,7 +14,7 @@ from copier import run_copy
 from copier.errors import CopierError
 
 TEMPLATE = "https://github.com/spassos/igarape.git"
-AGENTS = ("codex",)
+AGENTS = ("claude", "codex", "copilot", "opencode")
 
 
 def mcp_server(value: str) -> tuple[str, str]:
