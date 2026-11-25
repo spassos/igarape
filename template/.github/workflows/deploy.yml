@@ -1,4 +1,5 @@
 # Reusable deploy: roll out, then *prove* the release is live (version + readiness), else roll back.
+# Staging is then scanned passively with OWASP ZAP; high-risk alerts block the promotion to production.
 name: Deploy
 
 on:
@@ -29,6 +30,8 @@ jobs:
     concurrency:
       group: deploy-${{ inputs.environment }}
       cancel-in-progress: false
+    outputs:
+      url: ${{ steps.settings.outputs.url }}
     env:
       ENVIRONMENT: ${{ inputs.environment }}
       IMAGE: ${{ inputs.image }}
@@ -38,10 +41,12 @@ jobs:
         with:
           persist-credentials: false
       - name: Check deployment settings
+        id: settings
         env:
           APP_URL: ${{ vars.APP_URL }}
         run: |
           : "${APP_URL:?Set APP_URL in the target GitHub Environment}"
+          echo "url=${APP_URL%/}" >> "$GITHUB_OUTPUT"
       - name: Roll out
         id: rollout
         run: scripts/deploy.sh deploy
@@ -53,3 +58,28 @@ jobs:
       - name: Roll back
         if: failure() && (steps.rollout.outcome == 'failure' || steps.verify.outcome == 'failure')
         run: scripts/deploy.sh rollback
+
+  dast:
+    # Separate job: the scanner never sees the deploy secrets, and a finding does not roll back a
+    # verified release; it fails this workflow, so production (which needs staging) does not start.
+    # Unauthenticated and passive: it sees the public /health probes; /v1 only answers it 401.
+    name: Passive DAST on ${{ inputs.environment }} (OWASP ZAP baseline)
+    if: inputs.environment == 'staging'
+    needs: deploy
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: ZAP baseline scan (fails on the FAIL rules of .zap/rules.tsv)
+        uses: zaproxy/action-baseline@de8ad967d3548d44ef623df22cf95c3b0baf8b25 # v0.15.0
+        with:
+          target: ${{ needs.deploy.outputs.url }}/health/live
+          docker_name: ghcr.io/zaproxy/zaproxy:2.17.0@sha256:9624669db72f54d86c4b46a7064518bd9bf79d8c61a4c31befa9923489f328af
+          rules_file_name: .zap/rules.tsv
+          cmd_options: -I
+          fail_action: true
+          allow_issue_writing: false
+          artifact_name: zap-staging-report
