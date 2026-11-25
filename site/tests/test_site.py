@@ -26,6 +26,7 @@ CSP = "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; fo
 # External links the page may point to (prefix followed by "/", "?", "#" or the end).
 ALLOWED_EXTERNAL = (
     "https://github.com/spassos/igarape",
+    "https://pypi.org/project/igarape",
     "https://scorecard.dev/viewer/?uri=github.com/spassos/igarape",
 )
 NUMBER_WORDS = {4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine"}

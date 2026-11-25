@@ -107,9 +107,25 @@ def test_cli_commits_the_scaffold_when_git_has_an_identity(tmp_path: Path) -> No
     assert status.stdout == ""
 
 
-def test_cli_still_succeeds_and_explains_when_git_cannot_commit(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("config", "diagnostics"),
+    [
+        ("[user]\n\tuseConfigOnly = true\n", ("user.name", "user.email")),
+        (
+            (
+                "[user]\n\tname = Dev\n\temail = dev@example.invalid\n"
+                "[commit]\n\tgpgsign = true\n[gpg]\n\tprogram = igarape-test-signer-does-not-exist\n"
+            ),
+            ("igarape-test-signer-does-not-exist", "failed to sign"),
+        ),
+    ],
+    ids=["missing-identity", "signing-failure"],
+)
+def test_cli_still_succeeds_and_explains_when_git_cannot_commit(
+    tmp_path: Path, config: str, diagnostics: tuple[str, ...]
+) -> None:
     project = tmp_path / "orders"
-    env = git_env(tmp_path, "[user]\n\tuseConfigOnly = true\n")
+    env = {**git_env(tmp_path, config), "LC_ALL": "C"}
 
     result = subprocess.run(
         ["igarape", "new", str(project), "--template", str(ROOT)],
@@ -121,5 +137,7 @@ def test_cli_still_succeeds_and_explains_when_git_cannot_commit(tmp_path: Path) 
 
     assert result.returncode == 0
     assert "initial commit skipped" in result.stderr
+    assert all(diagnostic in result.stderr for diagnostic in diagnostics)
+    assert 'git commit -m "chore: initial scaffold from igarape"' in result.stderr
     assert (project / ".git").is_dir()
     assert (project / "pyproject.toml").is_file()

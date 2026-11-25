@@ -193,17 +193,22 @@ def test_default_scaffold_runs_without_docker(tmp_path: Path) -> None:
     dist = tmp_path / "dist"
     sh(ROOT, "uv", "build", "--wheel", "--out-dir", str(dist))
     (wheel,) = dist.glob("*.whl")
-    sh(
-        tmp_path,
-        "uvx",
-        "--isolated",
-        "--from",
-        str(wheel),
-        "igarape",
-        "new",
-        project.name,
-        "--template",
-        str(ROOT),
+    installation = tmp_path / "installation"
+    sh(tmp_path, "uv", "venv", "--seed", str(installation))
+    scripts = installation / "bin"
+    sh(tmp_path, str(scripts / "python"), "-m", "pip", "install", str(wheel))
+
+    # Git is a system prerequisite. uv must come from the wheel's dependencies.
+    git = shutil.which("git")
+    assert git is not None
+    system_tools = tmp_path / "system-tools"
+    system_tools.mkdir()
+    (system_tools / "git").symlink_to(git)
+    subprocess.run(
+        [str(scripts / "igarape"), "new", project.name, "--template", str(ROOT)],
+        cwd=tmp_path,
+        check=True,
+        env={**project_env(), "PATH": os.pathsep.join((str(system_tools), os.defpath))},
     )
     assert (project / ".git").is_dir()
     assert (project / "uv.lock").is_file()

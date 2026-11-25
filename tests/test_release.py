@@ -1,12 +1,29 @@
 """The CLI's own release flow: release-please versions, tags and publishes in one workflow run."""
 
 import json
+import re
 import tomllib
 from pathlib import Path
 
 import yaml
 
 ROOT = Path(__file__).parents[1]
+
+
+def test_pypi_description_uses_hosted_static_images() -> None:
+    pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
+    readme = pyproject["project"]["readme"]
+    assert f"/{readme}" in pyproject["tool"]["hatch"]["build"]["targets"]["sdist"]["include"]
+    description = (ROOT / readme).read_text()
+    assert "```mermaid" not in description
+    images = re.findall(r"!\[[^\n]*?\]\(([^)]+)\)", description)
+    base = "https://raw.githubusercontent.com/spassos/igarape/main/"
+    assert set(images) == {
+        f"{base}docs/assets/logo.svg",
+        f"{base}docs/assets/scaffolding.png",
+        f"{base}docs/assets/agentic-sdlc.png",
+    }
+    assert all((ROOT / image.removeprefix(base)).is_file() for image in images)
 
 
 def test_release_versions_pyproject_lockfile_and_changelog() -> None:

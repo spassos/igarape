@@ -18,13 +18,18 @@ AGENTS = ("claude", "codex", "copilot", "opencode")
 INITIAL_COMMIT = "chore: initial scaffold from igarape"
 
 
-def initial_commit(project: Path) -> bool:
-    """Commit the generated files so the first agent change has a clean diff; False if git can't."""
+def initial_commit(project: Path) -> subprocess.CompletedProcess[str]:
+    """Commit the generated files so the first agent change has a clean diff."""
     subprocess.run(["git", "add", "-A"], cwd=project, check=True)
-    result = subprocess.run(
-        ["git", "commit", "-q", "-m", INITIAL_COMMIT], cwd=project, capture_output=True, check=False
+    return subprocess.run(
+        ["git", "commit", "-q", "-m", INITIAL_COMMIT],
+        cwd=project,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        errors="replace",
+        check=False,
     )
-    return result.returncode == 0
 
 
 def mcp_server(value: str) -> tuple[str, str]:
@@ -125,18 +130,23 @@ def main() -> int:
         with tempfile.TemporaryDirectory(dir=path.parent) as temp:
             project = Path(temp) / "project"
             run_copy(source, project, vcs_ref=revision, data=answers, defaults=True, unsafe=False, quiet=True)
-            subprocess.run(["uv", "lock"], cwd=project, check=True)
+            subprocess.run([sys.executable, "-P", "-m", "uv", "lock"], cwd=project, check=True)
             subprocess.run(["git", "init", "-q", "-b", "main"], cwd=project, check=True)
-            committed = initial_commit(project)
+            commit = initial_commit(project)
             project.rename(path)
     except (CopierError, OSError, ValueError, subprocess.CalledProcessError) as exc:
         print(f"igarape: {exc}", file=sys.stderr)
         return 1
 
-    if not committed:
+    if commit.returncode:
         print(
-            "igarape: initial commit skipped (set git user.name and user.email, then run "
-            f'`git -C {path} add -A && git -C {path} commit -m "{INITIAL_COMMIT}"`)',
+            f"igarape: initial commit skipped (git exited with status {commit.returncode}).", file=sys.stderr
+        )
+        detail = commit.stdout.rstrip() or "Git did not report any details."
+        print(detail, file=sys.stderr)
+        print(
+            "igarape: fix the Git error, then run "
+            f'`git add -A && git commit -m "{INITIAL_COMMIT}"` in the generated directory.',
             file=sys.stderr,
         )
 

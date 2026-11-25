@@ -27,8 +27,8 @@ packaged in the `igarape` wheel or sdist, rendered by Copier, or tested by the C
 - No `<script>`, inline styles, event handlers or third-party resources. Each page carries the CSP
   `default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'`
   (Pages cannot set HTTP headers; `frame-ancestors` does not work in a meta tag, an accepted gap).
-  Badges are text links, not images. External links go only to this repository and its Scorecard
-  page, with `rel="noopener"`.
+  Badges use text links. External links point to this repository, its PyPI project and its
+  Scorecard page and use `rel="noopener"`.
 - Colours: only these pairs (WCAG 2.x AA).
 
   | Text / background | Ratio | Use |

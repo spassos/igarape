@@ -46,7 +46,7 @@
       <h1>Igarapé</h1>
       <p class="tagline">From idea to production</p>
       <p class="lede" data-claim>Igarapé is a CLI that generates Python service repositories ready for coding agents.</p>
-      <p class="status"><span data-claim>Status: early development, not yet on PyPI. Install from Git</span>, as shown in the quick start.</p>
+      <p class="status" data-claim>Igarapé is in early development and available on <a href="https://pypi.org/project/igarape/" rel="noopener">PyPI</a>.</p>
       <p class="actions">
         <a class="button button-primary" href="#quick-start">Quick start</a>
         <a class="button button-secondary" href="https://github.com/spassos/igarape" rel="noopener">View on GitHub</a>
@@ -149,11 +149,11 @@
       <div class="wrap">
         <h2 id="quick-start-title">Quick start</h2>
         <p class="intro" data-claim>Requirements: uv, Git and <code>make</code>. Docker is needed only for the optional integrations.</p>
-        <pre class="code" tabindex="0" aria-label="Quick start commands"><code data-quickstart>uvx --from 'git+https://github.com/spassos/igarape.git@main' igarape new orders-api
+        <pre class="code" tabindex="0" aria-label="Quick start commands"><code data-quickstart>uvx igarape new orders-api
 cd orders-api &amp;&amp; make bootstrap &amp;&amp; make run   # in-memory API on http://127.0.0.1:8000
 make check                                    # the Definition of Done gate</code></pre>
         <p data-claim>Then open the directory with your coding agent. It reads <code>AGENTS.md</code> first.</p>
-        <p data-claim>Install it for repeated use with <code>uv tool install git+https://github.com/spassos/igarape.git</code>.</p>
+        <p data-claim>Install it for repeated use with <code>uv tool install igarape</code>.</p>
       </div>
     </section>
 
