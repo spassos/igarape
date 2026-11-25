@@ -51,6 +51,13 @@ Os subagents (`.codex/agents/`) são acionados pelas skills ou explicitamente:
 | Tipagem | mypy `--strict` | pre-commit, CI |
 | Arquitetura hexagonal | import-linter | pre-commit, CI |
 | Testes + cobertura mínima | pytest, pytest-cov, testcontainers, respx | CI |
+| Contrato HTTP = OpenAPI | Schemathesis (`tests/api/test_openapi_contract.py`) | `make test-unit`, CI |
+| Invariantes do domínio | Hypothesis | `make test-unit`, CI |
+| Migrações reversíveis e fiéis aos modelos | `tests/integration/test_migrations.py` (Postgres) | CI |
+| Autenticação, escopos e BOLA | `require_scopes`, `TokenVerifier`, `tests/api/test_security.py` | `make test-unit`, CI |
+| Exposição e configuração da API | problem+json, headers de segurança, `/docs` só local/test, limite de corpo | `make test-unit`, CI |
+| DAST passivo | OWASP ZAP baseline | CD (staging) |
+| Rate limiting | API gateway (fora da aplicação) | plataforma |
 | Vulnerabilidades em dependências | pip-audit (lockfile completo), Dependabot | CI, semanal |
 | Código inseguro | Ruff `S` (Bandit) | pre-commit, CI |
 | Segredos | gitleaks | pre-commit, CI |
@@ -63,8 +70,9 @@ Os subagents (`.codex/agents/`) são acionados pelas skills ou explicitamente:
 1. **PR** → `ci.yml`: qualidade, testes, segurança, build/scan da imagem, título Conventional Commit.
 2. **Merge em `main`** → `cd.yml`: CI de novo. Com a variável de repositório `ENABLE_CD=true`, segue para imagem no GHCR (`:<sha>`) com attestation →
    `deploy.yml` em **staging** → `scripts/smoke.py` confirma que `/health/live` responde a versão
-   (SHA) recém-publicada e `/health/ready` está 200 → **production** (aprovação no GitHub
-   Environment) → mesma verificação → rollback automático se falhar.
+   (SHA) recém-publicada e `/health/ready` está 200 → OWASP ZAP baseline (scan passivo) contra
+   staging → **production** (aprovação no GitHub Environment) → mesma verificação → rollback
+   automático se falhar.
 3. Com a variável de repositório `ENABLE_RELEASES=true`, `release.yml` (release-please) mantém o PR de release com CHANGELOG e versionamento semântico.
 
 As duas variáveis são independentes. Para projetos existentes que adotarem esta versão com
@@ -75,6 +83,22 @@ Configuração no GitHub:
 - Environments `staging` e `production` (production com *required reviewers*), cada um com a
   variável `APP_URL` e o segredo `KUBECONFIG_DATA` (base64) — ou adapte `scripts/deploy.sh` à sua
   plataforma mantendo o contrato `deploy|rollback`.
+- Autenticação por ambiente: o provedor OIDC de cada ambiente vira variáveis (não são segredos)
+  do GitHub Environment e da plataforma onde o container roda. O `scripts/deploy.sh` padrão só
+  troca a imagem, então a configuração de runtime precisa existir na plataforma (ex.: ConfigMap).
+
+  | Variável | `staging` / `production` |
+  |---|---|
+  | `APP_ENV` | `staging` / `production` |
+  | `APP_AUTH_JWKS_URL` | URL HTTPS do JWKS do provedor |
+  | `APP_AUTH_ISSUER` | `iss` exato emitido pelo provedor |
+  | `APP_AUTH_AUDIENCE` | identificador da API no provedor |
+  | `APP_AUTH_ALGORITHMS` | opcional (padrão `RS256`) |
+  | `APP_MAX_BODY_BYTES` | opcional (padrão 1 MiB) |
+  | `APP_AUTH_DEV_SECRET` | nunca definir: a aplicação não sobe |
+
+  Sem JWKS, emissor ou audiência a aplicação falha na inicialização e o deploy faz rollback.
+  Rate limiting e cotas ficam no API gateway na frente do serviço.
 - Branch protection em `main`: PR obrigatório, checks do CI obrigatórios, squash merge.
 - Opcional, review automático no PR: com Codex, segredo `OPENAI_API_KEY` + variável `CODEX_REVIEW=true`;
   com Claude Code, segredo `ANTHROPIC_API_KEY` + variável `CLAUDE_REVIEW=true`. O Copilot tem code review nativo.
