@@ -26,3 +26,6 @@ and OpenCode (`--agent`, repeatable).
 - Workflows pin actions by commit SHA and use least privilege; validate with
   `uvx zizmor --offline template/.github/workflows .github/workflows` and actionlint.
 - Agent-facing files (AGENTS.md, skills, subagents) are English; generated human docs are Portuguese.
+- Repository docs (`README.md`, `docs/architecture.md`, `CONTRIBUTING.md`, `SECURITY.md`) are English.
+  Keep the README "Why you can trust it" table in sync with `.github/workflows/template-ci.yml`, and
+  never claim a feature in the README that the template and its tests do not deliver.
