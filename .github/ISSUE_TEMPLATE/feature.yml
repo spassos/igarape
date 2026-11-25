@@ -1,0 +1,21 @@
+name: Feature
+description: A new option, agent adapter or template capability
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Who needs it and what they do today.
+    validations: { required: true }
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: CLI option, generated files or workflow change you have in mind.
+    validations: { required: true }
+  - type: textarea
+    id: verification
+    attributes:
+      label: How CI would verify it
+      description: New scenario, test or check (see CONTRIBUTING.md).
