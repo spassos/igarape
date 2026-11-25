@@ -1,0 +1,26 @@
+# Weekly, grouped updates; a new version must be 7 days old before it is proposed.
+# Security updates (when enabled in the repository settings) are not delayed by the cooldown.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci(deps)"
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      python:
+        patterns: ["*"]
+    commit-message:
+      prefix: "build(deps)"
