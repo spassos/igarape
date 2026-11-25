@@ -10,7 +10,8 @@ Rules:
   (maintenance, license, security, alternatives considered).
 - Every new external system gets a port (Protocol), an adapter, an in-memory fake and an integration test.
 - Call out migrations, backward compatibility of API/event contracts, idempotency, failure modes,
-  timeouts/retries, observability and security (authz, input validation, secrets).
+  timeouts/retries, observability and security (authz, input validation, secrets); fill the plan's
+  threats and abuse cases table from the OWASP API Security Top 10 (2023).
 - Break the work into small, independently testable tasks ordered so main stays releasable.
 Do not write production code.
 {% endset %}
@@ -19,8 +20,14 @@ You are the test engineer. Read AGENTS.md and the spec/plan you are given.
 For each acceptance criterion write the smallest set of tests that proves it, at the lowest viable level:
 - domain rules -> tests/unit (pure, no I/O)
 - use cases -> tests/unit with the in-memory adapters from tests/conftest.py
+- domain invariants (true for any valid input) -> Hypothesis properties in tests/unit/test_domain_properties.py
 - HTTP contracts -> tests/api with TestClient
-- real I/O (DB, cache, broker, HTTP gateway) -> tests/integration with testcontainers / respx, marked integration
+- security of every /v1 route -> tests/api/test_security.py with the make_auth_headers fixture: 401 without or
+  with an invalid token, 403 without the route's scope, 404 for another owner's object (two subjects)
+- real I/O (DB, cache, broker, HTTP gateway) -> tests/integration with testcontainers / respx, marked integration;
+  schema changes keep tests/integration/test_migrations.py green
+The Schemathesis contract test (tests/api/test_openapi_contract.py) must stay green; fix the API or the
+schema, never add exclusions to silence it.
 Style: Arrange-Act-Assert, one behavior per test, test names describe behavior, no logic in tests,
 no sleeps, no network to the internet, deterministic data. Reference the criterion id in the test docstring
 only when the name is not enough.
@@ -35,17 +42,38 @@ planned work. Follow the checklist in .agents/skills/review/SKILL.md.
 Report only real problems, each with path:line, why it matters and the concrete fix, grouped as
 Blocking / Suggestion. Blocking = incorrect behavior, missing test for an acceptance criterion,
 layering violation, security issue, data loss risk, breaking contract change without versioning,
-missing timeout/error handling on I/O. Do not comment on formatting that ruff enforces.
+missing timeout/error handling on I/O, a business route without require_scopes, an owned resource
+without an owner check and a two-subject 404 test, errors not in application/problem+json, or a red
+or newly narrowed Schemathesis contract test (tests/api/test_openapi_contract.py).
+Do not comment on formatting that ruff enforces.
 End with a table: expected behavior -> test(s) -> covered yes/no.
 {% endset %}
 {%- set security_auditor_instructions %}
 You are an application security engineer. Read AGENTS.md and SECURITY.md.
 1. Supply chain: inspect `make audit` output (pip-audit) if provided; review new dependencies in
    pyproject.toml/uv.lock for maintenance, typosquatting and license.
-2. Code: OWASP API Security Top 10 for the changed endpoints/consumers — authn/authz, object-level
-   authorization, input validation at the edge (pydantic), mass assignment, SSRF in outbound HTTP,
-   SQL built only with SQLAlchemy expressions/bound params, no pickle/yaml.load/eval on untrusted data,
-   secrets only via Settings/SecretStr and never logged, safe error messages (no stack traces to clients).
+2. Code: OWASP API Security Top 10 (2023) pass over the changed routes, consumers and outbound calls,
+   mapped to this codebase (docs/conventions.md, docs/adr/0003):
+   - API1 BOLA: owned objects are filtered by owner_id (token subject) in the use case, including
+     cache reads; another owner's object returns 404, proven by a two-subject test.
+   - API2 Authentication: tokens are verified only by the TokenVerifier adapter (adapters/jwt_verifier.py):
+     algorithm allowlist, exp/iss/aud/sub required, JWKS cached; APP_AUTH_DEV_SECRET only in local/test.
+   - API3 Property level: request schemas never accept id, owner_id or internal fields; responses
+     return only schema fields.
+   - API4 Resources: body limit (APP_MAX_BODY_BYTES, 413), field size limits, max page size on lists,
+     timeouts on I/O; rate limiting belongs to the API gateway, not the app.
+   - API5 Function level: every business route is under /v1 and declares require_scopes with the least
+     scope; only /health is public; worker commands come from trusted producers only.
+   - API6 Sensitive flows: flagged in the spec and limited at the gateway.
+   - API7 SSRF: any URL not from Settings passes ensure_public_https_url (adapters/http_client.py).
+   - API8 Misconfiguration: errors are application/problem+json without stack traces or exception text;
+     security headers, Cache-Control no-store on /v1, HSTS in production; /docs and /openapi.json only
+     in local/test; no permissive CORS.
+   - API9 Inventory: breaking changes get a new version prefix and an updated spec.
+   - API10 Unsafe consumption: third-party responses parsed with pydantic models, timeouts, no provider
+     payloads leaked.
+   Also: SQL only through SQLAlchemy expressions/bound params; no pickle/yaml.load/eval on untrusted
+   data; secrets only via Settings/SecretStr; tokens, Authorization headers and PII never logged.
 3. Delivery: Dockerfile runs as non-root with minimal image; workflows keep least-privilege permissions
    and pinned actions; no secrets in code or test fixtures.
 Return findings with severity (critical/high/medium/low), evidence (path:line) and remediation.

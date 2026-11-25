@@ -9,9 +9,10 @@ Read this file before every task. Details live in `docs/`; do not duplicate them
 |---|---|
 | Initialize Git and install dependencies | `make bootstrap` |
 | Install dependencies and Git hooks | `make setup` |
-| Fast loop (no Docker) | `make test-unit` |
+| Fast loop (no Docker): unit, property, API, security, contract | `make test-unit` |
 | Auto-fix style | `make fmt` |
 | **Definition of Done gate** | `make check` (lint, mypy strict, import-linter, pip-audit, full tests + coverage ≥ {{ coverage_threshold }}%) |
+| Local bearer token (local/test only) | `make token sub=alice scopes="items:read items:write"` |
 | Run API locally | {% if use_postgres or use_redis or event_broker != 'none' %}`make up` (all in Docker) or start infrastructure first, then `make run`{% else %}`make run` (in memory, without Docker){% endif %} |
 {%- if event_broker != 'none' %}
 | Run event consumer | `make worker` |
@@ -66,12 +67,22 @@ container.py is the ONLY place that chooses adapters (composition root)
 - Config: only via `Settings` (`APP_*` env vars). Secrets are `SecretStr`. Nothing secret in code, logs, tests or fixtures.
 - Logging: `structlog.get_logger()` with snake_case event names and key/value context. No `print`.
 - I/O: async everywhere; explicit timeouts on every network call; retries only for idempotent operations (`retry_transient`).
-- Tests: AAA, one behavior per test, named after the behavior. Unit tests use the in-memory adapters; real infra only in `tests/integration` (testcontainers, `@pytest.mark.integration`). Each acceptance criterion of the spec maps to at least one test.
+- Tests: AAA, one behavior per test, named after the behavior. Unit tests use the in-memory adapters; real infra only in `tests/integration` (testcontainers, `@pytest.mark.integration`). Each acceptance criterion of the spec maps to at least one test. Other levels (`docs/conventions.md`): Hypothesis for domain invariants, `tests/api/test_security.py` for authn/authz, the Schemathesis contract test `tests/api/test_openapi_contract.py` stays green{% if use_postgres %}, `tests/integration/test_migrations.py` for schema changes{% endif %}; OWASP ZAP baseline scans staging in CD.
 - Commits & PR titles: Conventional Commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `build:`, `ci:`, `chore:`). One focused change per PR.
+
+## Security (full mapping: `docs/conventions.md`, decisions: `docs/adr/0003-autenticacao-jwt-oidc.md`)
+
+- Deny by default: every business route lives under `/v1` and declares `require_scopes(...)`; only `/health/*` is public.
+- Owned objects: filter by owner (token subject) in the use case; another owner's object returns `404`, never `403`.
+- Errors are `application/problem+json` (RFC 9457) without stack traces or internal details.
+- Never accept `id`, `owner_id` or internal fields from the client; bound field sizes and list `limit`.
+- Validate outbound URLs with `ensure_public_https_url()` and third-party responses with pydantic models.
+- Never log tokens, `Authorization` headers or PII. `APP_AUTH_DEV_SECRET` is for `local`/`test` only.
+- Rate limiting is the API gateway's job; do not build it into the app.
 
 ## Guardrails
 
-- Do not disable, skip or weaken tests, lint rules, coverage or security checks to get green. Fix the cause.
+- Do not disable, skip or weaken tests, lint rules, coverage or security checks (including auth dependencies and Schemathesis checks) to get green. Fix the cause.
 - Do not add a dependency without checking it is maintained, licensed compatibly, and `make audit` stays clean.
 - Do not touch `.github/workflows/` or `scripts/deploy.sh` unless the task explicitly includes them.
 - Ask a human when requirements are ambiguous, a migration is destructive, or a public contract (API/event) changes incompatibly.
