@@ -37,11 +37,11 @@ already in place, whichever agent the team uses.
 
 | What you get | How it is enforced |
 |---|---|
-| **One SDLC for every agent.** Six phases (Discovery → Specify → Plan → Implement → Review → Ship), each a skill that produces a versioned artifact and ends at a gate: human approval of the PRD, spec, plan and merge; a green `make check` and no blocking review findings in between. | The same `AGENTS.md` and `.agents/skills/` are read by Codex, Claude Code, GitHub Copilot and OpenCode; each agent gets only a thin adapter generated from the same source. |
-| **A real service, not a blank repo.** FastAPI with hexagonal architecture, in-memory by default, with optional PostgreSQL, Redis and Kafka/RabbitMQ integrations, plus an outbound HTTP client with timeouts and retries. | `import-linter` keeps the layers apart; integrations are generated only when chosen, with no dead code. |
-| **Quality gates the agent cannot talk its way around.** | `make check` runs lint, `mypy --strict`, architecture checks, dependency audit and the full test suite with a coverage floor, identically on a laptop, in an agent session and in CI. |
-| **Security by default.** OWASP API Top 10 controls: JWT/OIDC, owner-scoped objects, RFC 9457 errors, request limits, SSRF guard. | Security, contract (Schemathesis) and property (Hypothesis) tests ship with the service. |
-| **Delivery verified in production (optional).** | With CD enabled, a release is done only when the smoke test confirms the deployed commit SHA and readiness; otherwise it rolls back. |
+| **One SDLC for every agent.** Six phases (Discovery → Specify → Plan → Implement → Review → Ship), each a skill that produces a versioned artifact and ends at a gate: human approval of the PRD, spec, plan and merge; a green `make check` and no blocking review findings in between. `AGENTS.md`, seven skills (`discovery`, `specify`, `plan`, `implement`, `integrate`, `review`, `ship`) and four subagent roles (`architect`, `test_engineer`, `reviewer`, `security_auditor`). | The same `AGENTS.md` and `.agents/skills/` are read by Codex, Claude Code, GitHub Copilot and OpenCode; each agent gets only a thin adapter generated from the same source, and the subagents are read-only except `test_engineer`. |
+| **A real service, not a blank repo.** FastAPI with hexagonal architecture, in memory by default. PostgreSQL (SQLAlchemy async + Alembic), Redis and Kafka or RabbitMQ (FastStream publisher + consumer worker) are opt-in; an outbound HTTP client with timeouts and retries is always included. | import-linter keeps the layers apart (`domain` and `application` import no framework); integrations are generated only when chosen, with no dead code. |
+| **Quality gates the agent cannot talk its way around.** | `make check` runs Ruff (PEP 8/257 and Bandit rules), `mypy --strict`, import-linter, pip-audit on the locked tree and pytest with branch coverage ≥ 90%, identically on a laptop, in an agent session and in CI. Tests cover unit, API and integration (testcontainers) levels, plus a migration round-trip. |
+| **Security by default.** OWASP API Security Top 10 controls: versioned `/v1` routes, generic JWT/OIDC authentication (JWKS, scopes, deny by default), object-level authorization (another owner's item returns 404), RFC 9457 problem details, security headers, a request-body size limit, `/docs` disabled in production and an SSRF guard for outbound HTTP. The mapping lives in the generated docs. | Security, contract (Schemathesis) and property (Hypothesis) tests ship with the service. CI runs gitleaks, zizmor and Trivy, with actions pinned by commit SHA and least-privilege permissions. |
+| **Delivery verified in production (optional).** Opt-in CD (`ENABLE_CD=true`) pushes an image to GHCR with build-provenance attestation, deploys to staging, runs an OWASP ZAP baseline scan there, then deploys to production behind an environment approval. Opt-in release-please (`ENABLE_RELEASES=true`) keeps the CHANGELOG and semantic versions. | A deploy is done only when the smoke test confirms the deployed commit SHA and readiness; otherwise it rolls back automatically. PR titles must follow Conventional Commits. |
 | **Projects keep improving.** | Generated repositories stay linked to the template; `copier update` brings later improvements. |
 
 Igarapé does not replace your coding agent or invent new tooling. It combines established tools
@@ -104,29 +104,6 @@ flowchart LR
 Skills are written `$skill` (Codex syntax); in Claude Code they are `/skill`, and in Copilot and
 OpenCode you ask for the skill by name. The seventh skill, `$integrate`, adds a new external
 system as a port, adapter, in-memory fake and integration test.
-
-## What you get
-
-- **Agent layer:** `AGENTS.md`, seven skills (`discovery`, `specify`, `plan`, `implement`,
-  `integrate`, `review`, `ship`) and four subagent roles (`architect`, `test_engineer`, `reviewer`,
-  `security_auditor`, read-only except `test_engineer`), defined once and rendered per agent.
-- **Service:** FastAPI with hexagonal layers enforced by import-linter (`domain` and `application`
-  import no framework). In memory by default; PostgreSQL (SQLAlchemy async + Alembic), Redis and
-  Kafka or RabbitMQ (FastStream publisher + consumer worker) are opt-in. Versioned `/v1` routes,
-  generic JWT/OIDC authentication (JWKS, scopes, deny by default), object-level authorization
-  (another owner's item returns 404), RFC 9457 problem details, security headers, a request-body
-  size limit, `/docs` disabled in production and an SSRF guard for outbound HTTP. The OWASP API
-  Security Top 10 mapping lives in the generated docs.
-- **One gate:** `make check` runs Ruff (PEP 8/257 and Bandit rules), mypy `--strict`,
-  import-linter, pip-audit on the locked tree and pytest with branch coverage ≥ 90%. Tests cover
-  unit, API, integration (testcontainers), Schemathesis contract tests, Hypothesis property tests
-  and a migration round-trip. The same command serves people, agents and CI.
-- **Delivery:** GitHub Actions with actions pinned by commit SHA and least-privilege permissions,
-  gitleaks, zizmor, Trivy and a Conventional Commit PR title check. Opt-in CD (`ENABLE_CD=true`)
-  pushes an image to GHCR with build-provenance attestation, deploys to staging, runs an OWASP ZAP
-  baseline scan there, then production behind an environment approval. Each deploy is verified by
-  a smoke test that sees the commit SHA live and rolls back automatically on failure. Opt-in
-  release-please (`ENABLE_RELEASES=true`) keeps the CHANGELOG and semantic versions.
 
 ## Agent support
 
