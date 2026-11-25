@@ -1,0 +1,12 @@
+"""Test data builders: the single place that knows how to build a valid domain object."""
+
+from typing import Any
+
+from {{ package_name }}.domain.items import Item
+
+DEFAULT_OWNER = "alice"  # the default subject of `make_auth_headers`
+
+
+def make_item(name: str = "book", *, owner_id: str = DEFAULT_OWNER, **fields: Any) -> Item:
+    """Build an Item with valid defaults; keyword fields override them."""
+    return Item(name=name, owner_id=owner_id, **fields)
