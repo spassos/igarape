@@ -13,8 +13,8 @@ uvx --from 'git+https://github.com/spassos/igarape.git@main' igarape new orders-
 cd orders-api && make bootstrap && make run
 ```
 
-> **Status:** early development. Codex is supported today; Claude Code, GitHub Copilot and
-> OpenCode are next (see [Roadmap](#roadmap)).
+> **Status:** early development. Codex, Claude Code, GitHub Copilot and OpenCode are supported;
+> see the [Roadmap](#roadmap) for what is next.
 
 ## Why the name
 
@@ -42,13 +42,13 @@ Claude Code, Copilot, OpenCode) is an *igara* travelling the same path to produc
 
 ```bash
 igarape new inventory --postgres --redis --broker rabbit
-igarape new ai-service --mcp docs=https://example.com/mcp
+igarape new ai-service --agent claude --agent copilot --mcp docs=https://example.com/mcp
 igarape --help
 ```
 
 | Option | Default | Effect |
 |---|---|---|
-| `--agent` (repeatable) | `codex` | Coding agents to configure |
+| `--agent` (repeatable) | `codex` | `claude`, `codex`, `copilot`, `opencode` |
 | `--name` / `--description` / `--author` | derived | Project metadata |
 | `--python` | `3.13` | 3.12, 3.13 or 3.14 |
 | `--postgres`, `--redis` | off | Optional integrations, tested against real containers |
@@ -62,19 +62,27 @@ brings later template improvements.
 
 ## Agent support
 
-| Agent | Instructions | Skills | Subagents | MCP | Status |
+`AGENTS.md`, the skills in `.agents/skills/` and the four subagent roles are written once; each
+selected agent only gets the thin adapter its format requires.
+
+| Agent | Instructions | Skills | Subagents | MCP | PR review |
 |---|---|---|---|---|---|
-| Codex | `AGENTS.md` | `.agents/skills` | `.codex/agents/*.toml` | `.codex/config.toml` | ✅ |
-| Claude Code | `CLAUDE.md` → `@AGENTS.md` | `.claude/skills` (symlinks) | `.claude/agents/*.md` | `.mcp.json` | Planned |
-| GitHub Copilot | `AGENTS.md` | `.agents/skills` | `.github/agents/*.agent.md` | `.vscode/mcp.json` | Planned |
-| OpenCode | `AGENTS.md` | `.agents/skills` | `.opencode/agents/*.md` | `opencode.json` | Planned |
+| Codex | `AGENTS.md` | `.agents/skills` | `.codex/agents/*.toml` | `.codex/config.toml` | `codex-review.yml` (opt-in) |
+| Claude Code | `CLAUDE.md` → `@AGENTS.md` | `.claude/skills` (symlinks) | `.claude/agents/*.md` | `.mcp.json` | `claude-review.yml` (opt-in) |
+| GitHub Copilot | `AGENTS.md` (+ pointer in `.github/copilot-instructions.md`) | `.agents/skills` | `.github/agents/*.agent.md` | `.vscode/mcp.json`, `.github/mcp.json` | Native code review |
+| OpenCode (V2) | `AGENTS.md` | `.agents/skills` | `.opencode/agents/*.md` | `opencode.json` | — |
+
+The Copilot cloud agent gets `copilot-setup-steps.yml` so it can run `make check`; its MCP servers
+are configured in the repository settings.
 
 ## Roadmap
 
-1. **Portable core** — CLI, `--agent`, agent-neutral roles, Codex adapter. *(in progress)*
-2. **Claude Code and OpenCode** — adapters, `make agents-check` drift check, Claude review workflow.
-3. **GitHub Copilot** — custom agents, `copilot-setup-steps.yml`, MCP for VS Code.
-4. **Evidence** — Docker image build in CI, pilot comparing agents with and without guidance.
+1. **Portable core** — CLI, `--agent`, agent-neutral roles. ✅
+2. **Adapters** — Codex, Claude Code, GitHub Copilot and OpenCode. ✅
+3. **Images** — generated Dockerfiles built, smoke-tested and scanned in CI. ✅
+4. **Drift check** — `make agents-check` so edits to one agent's files cannot silently diverge.
+5. **Evidence** — pilot comparing agents with and without the guidance, on the same tasks.
+6. **Release** — publish `igarape` on PyPI.
 
 ## Developing
 

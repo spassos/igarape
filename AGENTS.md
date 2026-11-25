@@ -1,8 +1,8 @@
 # AGENTS.md — igarape
 
 This repository ships the **igarape CLI** (`igarape new <dir>`). It uses Copier to generate Python
-services with an agentic SDLC that works across coding agents. Supported today: Codex. Planned:
-Claude Code, GitHub Copilot, OpenCode (see the roadmap in README.md).
+services with an agentic SDLC that works across coding agents: Codex, Claude Code, GitHub Copilot
+and OpenCode (`--agent`, repeatable).
 
 - `src/igarape/cli.py` — CLI entry point.
 - `copier.yml` — questions. `template/` — everything rendered into new projects (`*.jinja` files
@@ -10,6 +10,7 @@ Claude Code, GitHub Copilot, OpenCode (see the roadmap in README.md).
 - `includes/roles.jinja` — the single, agent-neutral definition of the subagent roles
   (`architect`, `test_engineer`, `reviewer`, `security_auditor`). Agent-specific files import it;
   never copy role text into an agent's files.
+- `includes/opencode_agent.jinja` — macro that renders a role as an OpenCode V2 agent file.
 - `.agents/skills/new-service/` — skill that scaffolds a new service (`$new-service`).
 - `tests/` — `uv run pytest` renders every scenario and checks the layout; `-m smoke` runs the CLI
   wheel and exercises the default API over HTTP; `-m slow` runs `make check` in each generated

@@ -24,6 +24,9 @@ Always use `uv` (`uv add <pkg>`, `uv add --dev <pkg>`); never `pip install`. Nev
 
 ## Choose the workflow
 
+Skills are written as `$skill` (Codex syntax). In Claude Code run `/skill`; in GitHub Copilot and
+OpenCode ask for the skill by name. All of them load the same files in `.agents/skills/`.
+
 - For a clearly requested local fix with no public contract, migration or architectural change, start with `$implement`. Add a regression test and run `make check`. Use the request and the test as the review reference.
 - For a change to a public API, event or data contract, a migration, or an architectural decision, use `$specify` and `$plan` and get the resulting spec and plan approved before implementation.
 - Use `$discovery` when the problem or desired product outcome needs definition. Clarify ambiguous requirements before writing code.
@@ -39,7 +42,7 @@ Always use `uv` (`uv add <pkg>`, `uv add --dev <pkg>`); never `pip install`. Nev
 | 5. Review | `$review` | Review report, fixes | No blocking findings |
 | 6. Ship | `$ship` | Merge with green CI; follow enabled delivery jobs | With CD enabled, verify the deployed version and readiness |
 
-Subagent roles{% if 'codex' in agents %} (Codex: `.codex/agents/`){% endif %}{% if 'claude' in agents %} (Claude Code: `.claude/agents/`, hyphenated names){% endif %}{% if 'copilot' in agents %} (Copilot: `.github/agents/`){% endif %} include `architect` for design, `test_engineer` for tests,
+Subagent roles{% if 'codex' in agents %} (Codex: `.codex/agents/`){% endif %}{% if 'claude' in agents %} (Claude Code: `.claude/agents/`, hyphenated names){% endif %}{% if 'copilot' in agents %} (Copilot: `.github/agents/`){% endif %}{% if 'opencode' in agents %} (OpenCode: `.opencode/agents/`){% endif %} include `architect` for design, `test_engineer` for tests,
 `reviewer` for correctness, and `security_auditor` for security. Use them when the task benefits
 from independent analysis.
 
