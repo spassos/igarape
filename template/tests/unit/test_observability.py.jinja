@@ -1,0 +1,33 @@
+import json
+from collections.abc import Iterator
+
+import pytest
+import structlog
+
+from {{ package_name }}.config import Settings
+from {{ package_name }}.observability import configure_logging
+
+
+@pytest.fixture
+def json_logs(capsys: pytest.CaptureFixture[str]) -> Iterator[pytest.CaptureFixture[str]]:
+    configure_logging(Settings(env="test"))
+    yield capsys
+    structlog.reset_defaults()
+
+
+def fail_holding_a_token(authorization: str) -> None:
+    raise RuntimeError(f"upstream rejected a header of {len(authorization)} bytes")
+
+
+def test_error_logs_keep_the_traceback_without_local_variables(
+    json_logs: pytest.CaptureFixture[str],
+) -> None:
+    try:
+        fail_holding_a_token("Bearer secret-token-value")
+    except RuntimeError as exc:
+        structlog.get_logger().error("unhandled_error", exc_info=exc)
+
+    output = json_logs.readouterr().out
+    event = json.loads(output)
+    assert event["exception"][0]["exc_type"] == "RuntimeError"
+    assert "secret-token-value" not in output

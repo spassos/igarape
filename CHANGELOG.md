@@ -7,6 +7,14 @@ their advisory or CVE identifier.
 
 ## [Unreleased]
 
+### Security
+
+- Generated services no longer write local variables into exception logs. `dict_tracebacks`
+  rendered every frame's locals, so an unhandled error could log bearer tokens, token subjects
+  (often e-mail addresses) or other personal data. Tracebacks now keep the frames without locals,
+  and a generated test fails if a local value reaches the log. Affects projects generated with
+  0.1.0; no advisory has been published.
+
 ### Changed
 
 - Releases need no manual tagging. This repository runs release-please in `publish-pypi.yml`: the

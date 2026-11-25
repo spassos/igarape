@@ -4,6 +4,7 @@ import logging
 
 import structlog
 from asgi_correlation_id import correlation_id
+from structlog.tracebacks import ExceptionDictTransformer
 from structlog.typing import EventDict, WrappedLogger
 
 from {{ package_name }}.config import Settings
@@ -28,7 +29,8 @@ def configure_logging(settings: Settings) -> None:
             _add_correlation_id,
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso", utc=True),
-            structlog.processors.dict_tracebacks,
+            # Never render frame locals: they can hold tokens, subjects and other personal data.
+            structlog.processors.ExceptionRenderer(ExceptionDictTransformer(show_locals=False)),
             renderer,
         ],
         wrapper_class=structlog.make_filtering_bound_logger(
