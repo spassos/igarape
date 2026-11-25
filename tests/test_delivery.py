@@ -1,5 +1,6 @@
 """Validate delivery policy in the workflow files copied verbatim into every service."""
 
+import os
 import re
 import runpy
 import subprocess
@@ -64,6 +65,7 @@ def test_image_ships_the_release_version_or_the_sha(release: str, tmp_path: Path
     sha = "0123abc"
     env = {
         "RELEASE": release,
+        "RELEASES_ENABLED": "false",
         "GITHUB_SHA": sha,
         "GITHUB_REPOSITORY": "Acme/Orders",
         "GITHUB_OUTPUT": str(output),
@@ -83,6 +85,61 @@ def test_image_ships_the_release_version_or_the_sha(release: str, tmp_path: Path
     verify = next(step for step in deploy["jobs"]["deploy"]["steps"] if step.get("id") == "verify")
     assert '--version "$VERSION"' in verify["run"]
     assert deploy["jobs"]["deploy"]["env"]["VERSION"] == "${{ inputs.version }}"
+
+
+@pytest.mark.parametrize(
+    "releases_enabled,tagged_ref,recovered",
+    [
+        ("true", "HEAD", True),
+        ("true", "HEAD^", False),
+        ("true", None, False),
+        ("false", "HEAD", False),
+    ],
+)
+def test_delivery_recovers_version_only_for_the_tagged_release_commit(
+    releases_enabled: str, tagged_ref: str | None, recovered: bool, tmp_path: Path
+) -> None:
+    steps = workflow("cd")["jobs"]["build"]["steps"]
+    assert steps[0]["with"]["fetch-tags"] == "${{ vars.ENABLE_RELEASES == 'true' }}"
+    step = next(step for step in steps if step.get("id") == "name")
+    assert step["env"]["RELEASES_ENABLED"] == "${{ vars.ENABLE_RELEASES }}"
+
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    for message in ("previous release", "current commit"):
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.invalid",
+                "commit",
+                "--no-gpg-sign",
+                "--allow-empty",
+                "-qm",
+                message,
+            ],
+            cwd=tmp_path,
+            check=True,
+        )
+    version = "1.4.0"
+    (tmp_path / "pyproject.toml").write_text(f'[project]\nversion = "{version}"\n')
+    if tagged_ref:
+        subprocess.run(["git", "tag", "--no-sign", f"v{version}", tagged_ref], cwd=tmp_path, check=True)
+    sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=tmp_path, text=True).strip()
+    output = tmp_path / "output"
+    env = {
+        **os.environ,
+        "RELEASE": "",
+        "RELEASES_ENABLED": releases_enabled,
+        "GITHUB_SHA": sha,
+        "GITHUB_REPOSITORY": "Acme/Orders",
+        "GITHUB_OUTPUT": str(output),
+    }
+    subprocess.run(["bash", "-eu", "-c", step["run"]], cwd=tmp_path, check=True, env=env)
+    result = output.read_text().splitlines()
+    assert f"version={version if recovered else sha}" in result
+    assert ("ghcr.io/acme/orders:1.4.0" in result) is recovered
 
 
 def test_deploy_requires_destination_before_rollout() -> None:

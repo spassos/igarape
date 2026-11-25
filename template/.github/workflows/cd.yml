@@ -60,12 +60,24 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-tags: ${{ vars.ENABLE_RELEASES == 'true' }}
       - id: name
         # A release commit ships its semantic version (APP_VERSION and an extra image tag);
         # any other commit ships its SHA.
         env:
           RELEASE: ${{ needs.release.outputs.version }}
+          RELEASES_ENABLED: ${{ vars.ENABLE_RELEASES }}
         run: |
+          # release-please only emits a version when it creates the release. On a rerun,
+          # recover it from the matching tag if the tag points to this exact commit.
+          if [ -z "$RELEASE" ] && [ "$RELEASES_ENABLED" = "true" ]; then
+            candidate="$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+            if tag_sha="$(git rev-parse --verify --quiet "refs/tags/v${candidate}^{commit}")" &&
+               [ "$tag_sha" = "$GITHUB_SHA" ]; then
+              RELEASE="$candidate"
+            fi
+          fi
+
           repo="ghcr.io/${GITHUB_REPOSITORY,,}"
           {
             echo "repo=$repo"

@@ -90,10 +90,12 @@ são as mesmas dos outros agentes. As skills de `.agents/skills/` aparecem em `.
 `/implement` para uma correção local bem definida. Use `/agents` para ver os subagents
 (`architect`, `test-engineer`, `reviewer`, `security-auditor`). As permissões do projeto ficam em
 `.claude/settings.json`; ajustes pessoais vão em `.claude/settings.local.json`. Elas liberam os
-alvos do `make`, o `pytest` e o `git` (o `git push` sempre pede confirmação) e só valem depois que
-você aceita o diálogo de confiança da pasta na primeira execução interativa do `claude`. Até lá
-elas são ignoradas; no modo headless (`claude -p`) os comandos fora delas são recusados. Rode
-`claude` uma vez aqui ou passe as mesmas regras em `--allowedTools`.
+alvos do `make`, o `pytest` e comandos específicos de Git. Use `git status`, `git diff`,
+`git diff --cached` e `git log --oneline` para inspecionar as mudanças, `git add -- <arquivos>`
+para preparar o commit e `git commit -m "<mensagem>"` para gravá-lo. O `git push` pede confirmação.
+As permissões do projeto valem depois que você aceita o diálogo de confiança da pasta na primeira
+execução interativa do `claude`. No modo headless (`claude -p`), rode `claude` uma vez aqui para
+aceitar esse diálogo ou passe as regras necessárias em `--allowedTools`.
 {% if mcp_servers %}
 Servidores MCP configurados em `.mcp.json`: {% for name in mcp_servers %}`{{ name }}`{% if not loop.last %}, {% endif %}{% endfor %}.
 Na primeira sessão o Claude Code pede aprovação para usá-los; confira com `/mcp` (também para

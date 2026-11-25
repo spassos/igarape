@@ -5,9 +5,7 @@
 <p align="center">
   <a href="https://github.com/spassos/igarape/actions/workflows/template-ci.yml"><img src="https://github.com/spassos/igarape/actions/workflows/template-ci.yml/badge.svg?branch=main" alt="Template CI"></a>
   <a href="https://scorecard.dev/viewer/?uri=github.com/spassos/igarape"><img src="https://api.scorecard.dev/projects/github.com/spassos/igarape/badge" alt="OpenSSF Scorecard"></a>
-  <!-- PyPI badge goes here once `igarape` is published (docs/pypi.md):
   <a href="https://pypi.org/project/igarape/"><img src="https://img.shields.io/pypi/v/igarape" alt="PyPI"></a>
-  -->
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
   <a href="copier.yml"><img src="https://img.shields.io/badge/python-3.12%20%7C%203.13%20%7C%203.14-3776AB?logo=python&logoColor=white" alt="Python 3.12 | 3.13 | 3.14"></a>
   <br>
@@ -23,8 +21,8 @@
 
 **Igarapé** is a CLI that generates Python service repositories ready for coding agents.
 
-> **Status:** early development, not yet on PyPI. Install from Git (below). See the
-> [Roadmap](#roadmap).
+> Igarapé is in early development and available on [PyPI](https://pypi.org/project/igarape/).
+> See the [roadmap](#roadmap).
 
 ## Why Igarapé
 
@@ -54,7 +52,7 @@ Requirements: [uv](https://docs.astral.sh/uv/), Git and `make`. Docker is needed
 optional integrations.
 
 ```bash
-uvx --from 'git+https://github.com/spassos/igarape.git@main' igarape new orders-api
+uvx igarape new orders-api
 cd orders-api && make bootstrap && make run   # in-memory API on http://127.0.0.1:8000
 make check                                    # the Definition of Done gate
 ```
@@ -163,7 +161,7 @@ igarape --help
 | `--mcp NAME=URL` (repeatable) | none | Project MCP server (HTTPS, no credentials, query or fragment) |
 | `--template` / `--ref` | upstream `main` | Use a local checkout or a specific revision |
 
-Install it for repeated use with `uv tool install git+https://github.com/spassos/igarape.git`.
+Install it for repeated use with `uv tool install igarape`.
 Generated projects record their template revision in `.copier-answers.yml`; run
 `uvx copier update` inside one to bring later template improvements.
 
@@ -174,7 +172,7 @@ Generated projects record their template revision in `.copier-answers.yml`; run
 3. **Images** — generated Dockerfiles built, smoke-tested and scanned in CI. ✅
 4. **Drift check** — `make agents-check` so edits to one agent's files cannot silently diverge.
 5. **Evidence** — pilot comparing agents with and without the guidance, on the same tasks.
-6. **Release** — publish `igarape` on PyPI.
+6. **Release** — publish `igarape` on PyPI. ✅
 
 ## Contributing
 
