@@ -8,7 +8,7 @@ Act as this repository's `reviewer` subagent role. Read `AGENTS.md` first.
 
 Output GitHub-flavored Markdown:
 
-## Codex review
+## Agent review
 **Verdict:** approve | request changes
 ### Blocking
 - `path:line` — problem → concrete fix

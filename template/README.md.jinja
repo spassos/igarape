@@ -6,7 +6,7 @@ Python {{ python_version }} · FastAPI · arquitetura hexagonal
 {%- if use_postgres %} · PostgreSQL{% endif %}
 {%- if use_redis %} · Redis{% endif %}
 {%- if event_broker == 'kafka' %} · Kafka{% elif event_broker == 'rabbit' %} · RabbitMQ{% endif %}
- · pronto para agentes de código: {% for a in agents %}**{{ {'codex': 'Codex'}[a] }}**{% if not loop.last %}, {% endif %}{% endfor %}.
+ · pronto para agentes de código: {% for a in agents %}**{{ {'claude': 'Claude Code', 'codex': 'Codex', 'copilot': 'GitHub Copilot', 'opencode': 'OpenCode'}[a] }}**{% if not loop.last %}, {% endif %}{% endfor %}.
 
 ## Começando
 
