@@ -24,7 +24,10 @@ and OpenCode (`--agent`, repeatable).
 - Keep generated projects lean: prefer standard library and already-chosen libraries
   (template/docs/adr/0002). New option in `copier.yml` ⇒ new scenario in `tests/test_template.py`.
 - Workflows pin actions by commit SHA and use least privilege; validate with
-  `uvx zizmor --offline template/.github/workflows .github/workflows` and actionlint.
+  `uvx zizmor --offline template/.github/workflows .github/workflows` and actionlint. CodeQL uses
+  advanced setup (`.github/workflows/codeql.yml`): keep the repository's CodeQL default setup off.
+- Generated base images are pinned by digest from `includes/image_digests.jinja`
+  (refresh with `scripts/refresh_image_digests.py`).
 - Agent-facing files (AGENTS.md, skills, subagents) are English; generated human docs are Portuguese.
 - Repository docs (`README.md`, `docs/architecture.md`, `CONTRIBUTING.md`, `SECURITY.md`) are English.
   Keep the README "Why you can trust it" table in sync with `.github/workflows/template-ci.yml`, and

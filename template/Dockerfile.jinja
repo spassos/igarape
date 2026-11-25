@@ -1,8 +1,10 @@
+{%- from 'includes/image_digests.jinja' import image_digests -%}
+{%- set digests = image_digests[python_version] -%}
 # syntax=docker/dockerfile:1
 # Multi-stage build following https://docs.astral.sh/uv/guides/integration/docker/
-ARG PYTHON_VERSION={{ python_version }}
+# Base images are pinned by digest; Dependabot (docker ecosystem) keeps them current.
 
-FROM ghcr.io/astral-sh/uv:python${PYTHON_VERSION}-trixie-slim AS build
+FROM ghcr.io/astral-sh/uv:python{{ python_version }}-trixie-slim@{{ digests.uv }} AS build
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_DOWNLOADS=0
 WORKDIR /app
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -13,7 +15,7 @@ COPY . /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev --no-editable
 
-FROM python:${PYTHON_VERSION}-slim-trixie AS runtime
+FROM python:{{ python_version }}-slim-trixie@{{ digests.python }} AS runtime
 ARG APP_VERSION=dev
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \

@@ -29,8 +29,9 @@ def mcp_server(value: str) -> tuple[str, str]:
         # Only endpoints suitable for committing to project configuration are supported.
         valid = (
             valid
-            and not endpoint.query
-            and not endpoint.fragment
+            # An empty "?" or "#" parses as no query/fragment, so check the raw text.
+            and "?" not in url
+            and "#" not in url
             and not any(c.isspace() or not c.isprintable() for c in url)
         )
         _ = endpoint.port

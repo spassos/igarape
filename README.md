@@ -136,11 +136,14 @@ are configured in the repository settings.
 | `uv run pytest` | All 6 scenarios render with the expected layout; every agent adapter renders the shared roles with the right permissions; the CLI rejects invalid input without touching the destination; the CD, deploy and rollback policy behaves as documented. |
 | `uv run pytest -m smoke` | The built wheel generates the default service, which starts, becomes ready and creates and reads an item over HTTP. |
 | zizmor | The workflows of a project generated with all four agents, and this repository's own, have no medium+ findings. |
+| Property-based tests (Hypothesis) | The CLI's external input (`--mcp NAME=URL`) only accepts credential-free HTTPS endpoints, and nothing it accepts can break out of the generated TOML/JSON config. |
+| Pinned base images | The generated `Dockerfile` pins both base images by digest for Python 3.12, 3.13 and 3.14. |
 | `make check` × 6 scenarios | Each generated project passes its own gate: `all-agents`, `full-kafka`, `minimal`, `postgres-rabbit`, `redis-only`, `with-mcp`, with real PostgreSQL, Redis, Kafka and RabbitMQ in containers. |
 | Generated images | The Dockerfile builds for the in-memory and full (Postgres + Redis + Kafka) profiles; the in-memory container starts and reports the build version; the full image packages its entrypoints and migrations; Trivy fails on fixable HIGH/CRITICAL CVEs. |
 
 Repository controls: actions pinned by commit SHA, `permissions: {}` by default, checkout without
 persisted credentials, Dependabot for actions and Python dependencies,
+[CodeQL](.github/workflows/codeql.yml) static analysis of the Python code and workflows,
 [OpenSSF Scorecard](.github/workflows/scorecard.yml), and PyPI publishing through trusted
 publishing (OIDC) only after the release wheel generates and tests a service. See
 [`SECURITY.md`](SECURITY.md).
