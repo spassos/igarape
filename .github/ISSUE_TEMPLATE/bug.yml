@@ -1,0 +1,32 @@
+name: Bug
+description: The CLI or a generated project behaves incorrectly
+labels: [bug]
+body:
+  - type: input
+    id: revision
+    attributes:
+      label: igarape revision
+      description: "`igarape --version`, or `_commit` from the generated `.copier-answers.yml`"
+    validations: { required: true }
+  - type: input
+    id: command
+    attributes:
+      label: Command and options
+      placeholder: igarape new orders-api --agent claude --postgres
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected vs. actual
+      description: Include the failing output (for example of `make check`).
+    validations: { required: true }
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: OS, uv version, Docker version, coding agent
