@@ -5,7 +5,7 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). Security fixes are listed under **Security** with
 their advisory or CVE identifier.
 
-## [Unreleased]
+## [0.2.0](https://github.com/spassos/igarape/compare/v0.1.0...v0.2.0) - 2026-11-25
 
 ### Added
 
@@ -14,9 +14,6 @@ their advisory or CVE identifier.
   (`uv run pytest site/tests`, run on pull requests that touch the site or `README.md`) checks that
   every sentence comes literally from the README and that the agents, Python versions, skills and
   quick start match the repository. The site is not part of the CLI package or generated projects.
-
-### Added
-
 - `igarape new` commits the generated scaffold (`chore: initial scaffold from igarape`), so the
   first agent change starts from a clean tree. Without a Git user identity it still succeeds and
   prints how to commit.
@@ -31,9 +28,6 @@ their advisory or CVE identifier.
 
 ### Changed
 
-- Generated Claude Code settings allow `git` (the `implement` skill commits each task) and ask
-  before `git push`. The generated README explains that project permissions apply only after the
-  folder's trust dialog is accepted, and how to pass them to headless runs.
 - Releases need no manual tagging. This repository runs release-please in `publish-pypi.yml`: the
   release PR bumps `pyproject.toml`, `uv.lock` and the manifest from Conventional Commits and adds
   the `CHANGELOG.md` entry; merging it tags `vX.Y.Z`, publishes the GitHub release and publishes
@@ -42,13 +36,16 @@ their advisory or CVE identifier.
   after CI and before the image build (`release.yml` is removed). Merging the release PR tags the
   commit and, with CD, deploys it as that version: the image gets a `:X.Y.Z` tag, `APP_VERSION` and
   `/health/live` report `X.Y.Z` and the smoke test checks it. Other merges still ship the SHA.
+- Generated Claude Code settings allow `git` (the `implement` skill commits each task) and ask
+  before `git push`. The generated README explains that project permissions apply only after the
+  folder's trust dialog is accepted, and how to pass them to headless runs.
+- README: a "Why Igarapé" section, with the former "What you get" merged into it.
 
 ### Fixed
 
 - Generated release PRs only updated `CHANGELOG.md` (release type `simple`): the version in
   `pyproject.toml` never moved. They now use the `python` release type and also bump the project's
   entry in `uv.lock`, so the release commit still passes `uv sync --locked` and `uv lock --check`.
-
 - The reference spec and plan (`docs/specs/001-items/`) describe only the integrations chosen at
   generation. An in-memory project no longer documents a PostgreSQL table, migrations, Redis or
   the `items.import` worker, which led coding agents to write acceptance criteria the service
