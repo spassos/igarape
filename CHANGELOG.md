@@ -5,6 +5,14 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). Security fixes are listed under **Security** with
 their advisory or CVE identifier.
 
+## [0.2.1](https://github.com/spassos/igarape/compare/v0.2.0...v0.2.1) (2026-11-25)
+
+
+### Fixed
+
+* make PyPI installs self-contained and harden generated workflows ([c49ed9c](https://github.com/spassos/igarape/commit/c49ed9cb506671beefb798a6d76e0c5cecbd61f0))
+* make PyPI installs self-contained and harden generated workflows ([b5de0a8](https://github.com/spassos/igarape/commit/b5de0a855a6b9bb7dc0f6c081d84aefab3e02f52))
+
 ## [0.2.0](https://github.com/spassos/igarape/compare/v0.1.0...v0.2.0) - 2026-11-25
 
 ### Added
