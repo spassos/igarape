@@ -79,6 +79,7 @@ container.py is the ONLY place that chooses adapters (composition root)
 - Validate outbound URLs with `ensure_public_https_url()` and third-party responses with pydantic models.
 - Never log tokens, `Authorization` headers or PII. `APP_AUTH_DEV_SECRET` is for `local`/`test` only.
 - Rate limiting is the API gateway's job; do not build it into the app.
+- Owner checks run after cache hits too. Tests call the API with the `make_auth_headers` fixture; `tests/tokens.py` mints edge-case tokens; `make token sub=... scopes="..."` mints a local one.
 
 ## Guardrails
 
