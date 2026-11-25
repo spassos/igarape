@@ -31,6 +31,17 @@ about them (`DirtyLocalWarning`). Use `--ref` to render another revision.
 CI runs all of them (see [`template-ci.yml`](.github/workflows/template-ci.yml)), plus zizmor on
 the generated workflows and an image build, smoke test and Trivy scan of generated services.
 
+### Landing page
+
+The project's landing page lives in [`site/`](site/README.md), apart from the CLI, and is deployed
+by [`pages.yml`](.github/workflows/pages.yml). Its sentences are copied literally from `README.md`,
+so when you change the README, also run its test (CI runs it on pull requests that touch the site,
+`README.md`, `copier.yml` or the skills):
+
+```bash
+uv run pytest site/tests
+```
+
 ### Test policy
 
 - **Every new feature and every bug fix comes with automated tests** in the same pull request.

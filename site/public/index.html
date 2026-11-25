@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>Igarapé: From idea to production</title>
+  <meta name="description" content="Igarapé is a CLI that generates Python service repositories ready for coding agents.">
+  <meta name="theme-color" content="#0B3D2E">
+  <link rel="canonical" href="%SITE_URL%">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon.png">
+  <link rel="stylesheet" href="style.css">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Igarapé">
+  <meta property="og:title" content="Igarapé: From idea to production">
+  <meta property="og:description" content="Igarapé is a CLI that generates Python service repositories ready for coding agents.">
+  <meta property="og:url" content="%SITE_URL%">
+  <meta property="og:image" content="%SITE_URL%og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The Igarapé icon, a river crossing the forest, with the tagline From idea to production">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Igarapé: From idea to production">
+  <meta name="twitter:description" content="Igarapé is a CLI that generates Python service repositories ready for coding agents.">
+  <meta name="twitter:image" content="%SITE_URL%og.png">
+  <meta name="twitter:image:alt" content="The Igarapé icon, a river crossing the forest, with the tagline From idea to production">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="hero">
+    <nav class="topnav wrap" aria-label="Sections">
+      <a class="brand" href="#main">Igarapé</a>
+      <ul>
+        <li><a href="#why">Why</a></li>
+        <li><a href="#how">How it works</a></li>
+        <li><a href="#agents">Agents</a></li>
+        <li><a href="#quick-start">Quick start</a></li>
+        <li><a href="#trust">Trust</a></li>
+      </ul>
+    </nav>
+    <div class="wrap hero-body">
+      <img class="hero-icon" src="assets/icon.svg" alt="" width="112" height="112">
+      <h1>Igarapé</h1>
+      <p class="tagline">From idea to production</p>
+      <p class="lede" data-claim>Igarapé is a CLI that generates Python service repositories ready for coding agents.</p>
+      <p class="status"><span data-claim>Status: early development, not yet on PyPI. Install from Git</span>, as shown in the quick start.</p>
+      <p class="actions">
+        <a class="button button-primary" href="#quick-start">Quick start</a>
+        <a class="button button-secondary" href="https://github.com/spassos/igarape" rel="noopener">View on GitHub</a>
+      </p>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+    <section id="why" class="section" aria-labelledby="why-title">
+      <div class="wrap">
+        <h2 id="why-title">Why Igarapé</h2>
+        <p class="intro" data-claim>Coding agents write code fast. Without a shared process they also ship unspecified behavior, untested requirements and unreviewed security, and every team configures its agent differently.</p>
+        <p class="intro" data-claim>Igarapé is a <strong>golden path for Python services built with coding agents</strong>: one command creates a production-ready repository where the process, the quality bar and the delivery pipeline are already in place, whichever agent the team uses.</p>
+        <ul class="cards">
+          <li class="card">
+            <h3 data-claim>One SDLC for every agent.</h3>
+            <p data-claim>The same <code>AGENTS.md</code> and <code>.agents/skills/</code> are read by Codex, Claude Code, GitHub Copilot and OpenCode; each agent gets only a thin adapter generated from the same source</p>
+          </li>
+          <li class="card">
+            <h3 data-claim>A real service, not a blank repo.</h3>
+            <p data-claim>import-linter keeps the layers apart (<code>domain</code> and <code>application</code> import no framework); integrations are generated only when chosen, with no dead code.</p>
+          </li>
+          <li class="card">
+            <h3 data-claim>Quality gates the agent cannot talk its way around.</h3>
+            <p data-claim><code>make check</code> runs Ruff (PEP 8/257 and Bandit rules), <code>mypy --strict</code>, import-linter, pip-audit on the locked tree and pytest with branch coverage ≥ 90%, identically on a laptop, in an agent session and in CI.</p>
+          </li>
+          <li class="card">
+            <h3 data-claim>Security by default.</h3>
+            <p data-claim>Security, contract (Schemathesis) and property (Hypothesis) tests ship with the service. CI runs gitleaks, zizmor and Trivy, with actions pinned by commit SHA and least-privilege permissions.</p>
+          </li>
+          <li class="card">
+            <h3 data-claim>Delivery verified in production (optional).</h3>
+            <p data-claim>A deploy is done only when the smoke test confirms the deployed version (the release version, else the commit SHA) and readiness; otherwise it rolls back automatically.</p>
+          </li>
+          <li class="card">
+            <h3 data-claim>Projects keep improving.</h3>
+            <p data-claim>Generated repositories stay linked to the template; <code>copier update</code> brings later improvements.</p>
+          </li>
+        </ul>
+        <p data-claim>Igarapé does not replace your coding agent or invent new tooling.</p>
+      </div>
+    </section>
+
+    <section id="how" class="section section-alt" aria-labelledby="how-title">
+      <div class="wrap">
+        <h2 id="how-title">How it works</h2>
+        <p class="intro" data-claim>Every generated project ships the same six-phase process as skills in <code>.agents/skills/</code>. Each phase produces a versioned artifact and ends at a gate.</p>
+        <ol class="phases">
+          <li>
+            <span class="phase-name" data-phase data-claim>Discovery</span>
+            <code data-claim>$discovery</code>
+            <span class="phase-detail">Gate: <span data-claim>problem and metrics approved</span></span>
+          </li>
+          <li>
+            <span class="phase-name" data-phase data-claim>Specify</span>
+            <code data-claim>$specify</code>
+            <span class="phase-detail">Gate: <span data-claim>acceptance criteria approved</span></span>
+          </li>
+          <li>
+            <span class="phase-name" data-phase data-claim>Plan</span>
+            <code data-claim>$plan</code>
+            <span class="phase-detail">Gate: <span data-claim>plan approved</span></span>
+          </li>
+          <li>
+            <span class="phase-name" data-phase data-claim>Implement</span>
+            <code data-claim>$implement</code>
+            <span class="phase-detail">Gate: <span data-claim>make check green</span></span>
+          </li>
+          <li>
+            <span class="phase-name" data-phase data-claim>Review</span>
+            <code data-claim>$review</code>
+            <span class="phase-detail">Gate: <span data-claim>no blocking findings</span></span>
+          </li>
+          <li>
+            <span class="phase-name" data-phase data-claim>Ship</span>
+            <code data-claim>$ship</code>
+            <span class="phase-detail">Then: <span data-claim>CI, merge, optional CD</span></span>
+          </li>
+        </ol>
+        <p data-claim>A well-scoped local fix may start at <code>implement</code> with a regression test.</p>
+        <p data-claim>The agent guidance is written once in a shared core; each selected agent gets only a thin adapter in the format it reads.</p>
+      </div>
+    </section>
+
+    <section id="agents" class="section" aria-labelledby="agents-title">
+      <div class="wrap">
+        <h2 id="agents-title">Agents supported</h2>
+        <p class="intro" data-claim><code>AGENTS.md</code>, the skills and the four roles are written once; each selected agent only gets the adapter its format requires.</p>
+        <ul class="agents">
+          <li><span class="agent-name" data-agent data-claim>Codex</span> <code data-claim>.codex/agents/*.toml</code></li>
+          <li><span class="agent-name" data-agent data-claim>Claude Code</span> <code data-claim>.claude/agents/*.md</code></li>
+          <li><span class="agent-name" data-agent data-claim>GitHub Copilot</span> <code data-claim>.github/agents/*.agent.md</code></li>
+          <li><span class="agent-name" data-agent data-claim>OpenCode</span> <code data-claim>.opencode/agents/*.md</code></li>
+        </ul>
+        <p data-claim><code>AGENTS.md</code>, seven skills (<code data-skill>discovery</code>, <code data-skill>specify</code>, <code data-skill>plan</code>, <code data-skill>implement</code>, <code data-skill>integrate</code>, <code data-skill>review</code>, <code data-skill>ship</code>) and four subagent roles (<code>architect</code>, <code>test_engineer</code>, <code>reviewer</code>, <code>security_auditor</code>).</p>
+      </div>
+    </section>
+
+    <section id="quick-start" class="section section-alt" aria-labelledby="quick-start-title">
+      <div class="wrap">
+        <h2 id="quick-start-title">Quick start</h2>
+        <p class="intro" data-claim>Requirements: uv, Git and <code>make</code>. Docker is needed only for the optional integrations.</p>
+        <pre class="code" tabindex="0" aria-label="Quick start commands"><code data-quickstart>uvx --from 'git+https://github.com/spassos/igarape.git@main' igarape new orders-api
+cd orders-api &amp;&amp; make bootstrap &amp;&amp; make run   # in-memory API on http://127.0.0.1:8000
+make check                                    # the Definition of Done gate</code></pre>
+        <p data-claim>Then open the directory with your coding agent. It reads <code>AGENTS.md</code> first.</p>
+        <p data-claim>Install it for repeated use with <code>uv tool install git+https://github.com/spassos/igarape.git</code>.</p>
+      </div>
+    </section>
+
+    <section id="trust" class="section" aria-labelledby="trust-title">
+      <div class="wrap">
+        <h2 id="trust-title">Why you can trust it</h2>
+        <p class="intro"><a href="https://github.com/spassos/igarape/blob/main/.github/workflows/template-ci.yml" rel="noopener" data-claim>Template CI</a> <span data-claim>runs on every pull request and every push to <code>main</code></span>:</p>
+        <ul class="checks">
+          <li><h3 data-check data-claim><code>ruff check</code> + <code>ruff format --check</code></h3> <p data-claim>The CLI and tests are clean.</p></li>
+          <li><h3 data-check data-claim><code>uv run pytest</code></h3> <p data-claim>All 6 scenarios render with the expected layout; every agent adapter renders the shared roles with the right permissions; the CLI rejects invalid input without touching the destination</p></li>
+          <li><h3 data-check data-claim><code>uv run pytest -m smoke</code></h3> <p data-claim>The built wheel generates the default service, which starts, becomes ready and creates and reads an item over HTTP.</p></li>
+          <li><h3 data-check data-claim>zizmor</h3> <p data-claim>The workflows of a project generated with all four agents, and this repository's own, have no medium+ findings.</p></li>
+          <li><h3 data-check data-claim>Property-based tests (Hypothesis)</h3> <p data-claim>The CLI's external input (<code>--mcp NAME=URL</code>) only accepts credential-free HTTPS endpoints, and nothing it accepts can break out of the generated TOML/JSON config.</p></li>
+          <li><h3 data-check data-claim>Pinned base images</h3> <p data-claim>The generated <code>Dockerfile</code> pins both base images by digest for Python <span data-python>3.12, 3.13 and 3.14</span>.</p></li>
+          <li><h3 data-check data-claim><code>make check</code> × 6 scenarios</h3> <p data-claim>Each generated project passes its own gate: <code>all-agents</code>, <code>full-kafka</code>, <code>minimal</code>, <code>postgres-rabbit</code>, <code>redis-only</code>, <code>with-mcp</code>, with real PostgreSQL, Redis, Kafka and RabbitMQ in containers.</p></li>
+          <li><h3 data-check data-claim>Generated images</h3> <p data-claim>The Dockerfile builds for the in-memory and full (Postgres + Redis + Kafka) profiles; the in-memory container starts and reports the build version; the full image packages its entrypoints and migrations; Trivy fails on fixable HIGH/CRITICAL CVEs.</p></li>
+        </ul>
+        <p data-claim>Repository controls: actions pinned by commit SHA, <code>permissions: {}</code> by default, checkout without persisted credentials, Dependabot for actions and Python dependencies</p>
+        <nav class="badges" aria-label="Project status">
+          <ul>
+            <li><a href="https://github.com/spassos/igarape/actions/workflows/template-ci.yml" rel="noopener">Template CI status</a></li>
+            <li><a href="https://scorecard.dev/viewer/?uri=github.com/spassos/igarape" rel="noopener">OpenSSF Scorecard</a></li>
+            <li><a href="https://github.com/spassos/igarape/blob/main/.github/workflows/codeql.yml" rel="noopener">CodeQL</a></li>
+            <li><a href="https://github.com/spassos/igarape/blob/main/SECURITY.md" rel="noopener">Security policy</a></li>
+          </ul>
+        </nav>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap footer-grid">
+      <section aria-labelledby="name-title">
+        <h2 id="name-title">Why the name</h2>
+        <p data-claim><em>Igarapé</em> comes from Tupi: <em>igara</em> (canoe) + <em>pé</em> (path), "the canoe's path", the narrow waterways that cross the Amazon forest. The process is the igarapé; every coding agent is an <em>igara</em> travelling the same path to production.</p>
+      </section>
+      <nav aria-label="Project links">
+        <h2>Project</h2>
+        <ul>
+          <li><a href="https://github.com/spassos/igarape" rel="noopener">GitHub repository</a></li>
+          <li><a href="https://github.com/spassos/igarape/blob/main/CONTRIBUTING.md" rel="noopener">Contributing</a></li>
+          <li><a href="https://github.com/spassos/igarape/blob/main/SECURITY.md" rel="noopener">Security</a></li>
+          <li><a href="https://github.com/spassos/igarape#roadmap" rel="noopener">Roadmap</a></li>
+          <li><a href="https://github.com/spassos/igarape/blob/main/CHANGELOG.md" rel="noopener">Changelog</a></li>
+        </ul>
+      </nav>
+    </div>
+    <p class="wrap legal">Igarapé is released under the <a href="https://github.com/spassos/igarape/blob/main/LICENSE" rel="noopener">MIT license</a>. No cookies, no scripts, no tracking.</p>
+  </footer>
+</body>
+</html>

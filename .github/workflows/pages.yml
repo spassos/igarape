@@ -1,0 +1,87 @@
+# Landing page (site/) on GitHub Pages: https://spassos.github.io/igarape/ (URL in site/SITE_URL).
+# Independent of the CLI and its Template CI; see site/README.md. Pull requests only run the check;
+# main (push or manual run) also builds and deploys. Requires Settings -> Pages -> Source: GitHub Actions.
+name: Pages
+
+on:
+  pull_request:
+    paths:
+      - "site/**"
+      - "README.md" # the page's claims are copied from it
+      - "copier.yml" # agents and Python versions listed on the page
+      - "template/.agents/skills/**" # skills listed on the page
+      - "docs/assets/**" # icons copied into the site
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/pages.yml"
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "README.md"
+      - "copier.yml"
+      - "template/.agents/skills/**"
+      - "docs/assets/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  check:
+    name: Check site
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          enable-cache: false
+      - run: uv sync --locked
+      - name: Page claims match README.md and the repository; page is static and accessible
+        run: uv run pytest site/tests
+
+  build:
+    name: Build site artifact
+    needs: check
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Assemble the site
+        run: bash site/scripts/build.sh # writes _site/
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: _site/
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write # create the Pages deployment
+      id-token: write # OIDC proof that the deployment comes from this workflow
+    # One deployment at a time; never cancel a deployment that is already running.
+    concurrency:
+      group: pages-deploy
+      cancel-in-progress: false
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

@@ -14,7 +14,8 @@ verified. For usage, see the [README](../README.md); for contribution rules, see
 | [`includes/roles.jinja`](../includes/roles.jinja) | The single definition of the four subagent roles. |
 | [`includes/opencode_agent.jinja`](../includes/opencode_agent.jinja) | Macro that renders one role as an OpenCode V2 agent file. |
 | [`tests/`](../tests) | Render, smoke and slow (generated `make check`) tests. |
-| [`.github/workflows/`](../.github/workflows) | Template CI, release and PyPI publishing, CodeQL and OpenSSF Scorecard. |
+| [`.github/workflows/`](../.github/workflows) | Template CI, release and PyPI publishing, CodeQL, OpenSSF Scorecard and the landing page (`pages.yml`). |
+| [`site/`](../site) | The landing page on GitHub Pages, independent of the CLI: not packaged, not rendered by Copier, tested by its own `site/tests/` and deployed by `pages.yml`. See [`site/README.md`](../site/README.md). |
 
 ## How the template works
 
@@ -170,7 +171,9 @@ the release wheel and runs its unit tests, and publishes the same artifacts with
 publishing (OIDC). Publishing stays in that workflow because a release created with `GITHUB_TOKEN`
 triggers no other workflow. A manual run on `main` rebuilds and publishes the current version.
 [`scorecard.yml`](../.github/workflows/scorecard.yml) publishes OpenSSF Scorecard results weekly
-and on every push to `main`.
+and on every push to `main`. [`pages.yml`](../.github/workflows/pages.yml) checks the landing page
+(`site/`) on pull requests that touch it, `README.md` or the facts it lists, and deploys it to
+GitHub Pages from `main`.
 
 ### Generated CI/CD
 

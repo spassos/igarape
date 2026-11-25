@@ -9,6 +9,14 @@ their advisory or CVE identifier.
 
 ### Added
 
+- Landing page at https://spassos.github.io/igarape/, in `site/` and deployed by `pages.yml`
+  (GitHub Pages). It is static HTML and CSS with no scripts or third-party resources, and a test
+  (`uv run pytest site/tests`, run on pull requests that touch the site or `README.md`) checks that
+  every sentence comes literally from the README and that the agents, Python versions, skills and
+  quick start match the repository. The site is not part of the CLI package or generated projects.
+
+### Added
+
 - `igarape new` commits the generated scaffold (`chore: initial scaffold from igarape`), so the
   first agent change starts from a clean tree. Without a Git user identity it still succeeds and
   prints how to commit.

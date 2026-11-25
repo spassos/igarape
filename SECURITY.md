@@ -43,6 +43,8 @@ service ships its own `SECURITY.md` for issues in that service.
 - `uv.lock` pins the dependency tree; CI installs with `uv sync --locked`.
 - Dependabot proposes weekly, grouped updates for GitHub Actions and Python dependencies.
 - OpenSSF Scorecard analyses the repository weekly and on every push to `main`.
+- The landing page (`site/`) runs no scripts and loads no third-party resources (strict CSP); only
+  the deploy job of `pages.yml`, from `main`, can write to GitHub Pages.
 - PyPI publishing runs only from `main`, when release-please creates a release (or by manual
   dispatch), uses trusted publishing (OIDC, no stored token) and publishes the exact artifacts that
   first generated and tested a service.
