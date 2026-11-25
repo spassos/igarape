@@ -1,0 +1,12 @@
+{%- from 'includes/roles.jinja' import roles -%}
+{%- set role = roles.architect -%}
+{#- Read-only roles get no edit tool; execute stays so they can run git diff and make targets. -#}
+{%- set ns = namespace(tools=['read', 'search'] + (['edit'] if role.access == 'write' else []) + ['execute']) -%}
+{%- for server in mcp_servers %}{% set ns.tools = ns.tools + [server ~ '/*'] %}{% endfor -%}
+---
+name: architect
+description: {{ role.description | to_json(ensure_ascii=False) }}
+tools: {{ ns.tools | to_json(ensure_ascii=False) }}
+---
+
+{{ role.instructions | trim }}
