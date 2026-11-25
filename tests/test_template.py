@@ -29,6 +29,13 @@ SCENARIOS = {
     "minimal": {"use_postgres": False, "use_redis": False, "event_broker": "none"},
     "postgres-rabbit": {"use_postgres": True, "use_redis": False, "event_broker": "rabbit"},
     "redis-only": {"use_postgres": False, "use_redis": True, "event_broker": "none"},
+    "all-agents": {
+        "use_postgres": False,
+        "use_redis": False,
+        "event_broker": "none",
+        "agents": ["claude", "codex", "copilot", "opencode"],
+        "mcp_servers": {"docs": "https://docs.example.com/mcp"},
+    },
 }
 
 
@@ -85,7 +92,11 @@ def test_renders_expected_layout(project: Path) -> None:
     }
     for agent in (project / ".codex/agents").glob("*.toml"):
         assert {"name", "description", "developer_instructions"} <= tomllib.loads(agent.read_text()).keys()
-    assert "agents:\n- codex" in (project / ".copier-answers.yml").read_text()
+    agents = answers.get("agents", ["codex"])
+    assert (
+        "agents:\n" + "".join(f"- {agent}\n" for agent in agents)
+        in (project / ".copier-answers.yml").read_text()
+    )
     assert (project / ".github/workflows/codex-review.yml").is_file()
     sandbox = {
         name: tomllib.loads((project / f".codex/agents/{name}.toml").read_text())["sandbox_mode"]
@@ -103,7 +114,7 @@ def test_renders_expected_layout(project: Path) -> None:
 
 @pytest.mark.slow
 def test_generated_project_passes_its_own_gates(project: Path) -> None:
-    if project.name not in {"minimal", "with-mcp"} and shutil.which("docker") is None:
+    if project.name not in {"minimal", "with-mcp", "all-agents"} and shutil.which("docker") is None:
         pytest.skip("Docker is required for integration tests")
     sh(project, "make", "bootstrap")
     sh(project, "make", "check")
