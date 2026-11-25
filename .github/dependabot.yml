@@ -3,7 +3,10 @@
 version: 2
 updates:
   - package-ecosystem: github-actions
-    directory: /
+    # The template's workflows are rendered into every generated project, so keep them current too.
+    # Files with Jinja in their name (e.g. the Copilot setup steps) are not scanned; the
+    # tests/test_action_pins.py guard keeps them aligned with the rest.
+    directories: ["/", "/template"]
     schedule:
       interval: weekly
     cooldown:
