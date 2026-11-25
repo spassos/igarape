@@ -1,0 +1,52 @@
+{%- set broker = event_broker != 'none' -%}
+{%- set infra = use_postgres or use_redis or broker -%}
+{%- set it = ', `tests/integration/test_app.py`' if infra else '' -%}
+# Plano — 001 Itens
+
+**Spec:** ./spec.md · **ADRs:** 0002, 0003, 0004 · **Status:** Done
+
+| AC | Nível | Teste |
+|---|---|---|
+| AC-1 | unit, api{% if infra %}, integration{% endif %} | `tests/unit/test_item_service.py`, `tests/api/test_items_api.py`{{ it }} |
+| AC-2 | unit, property, api | `tests/unit/test_domain.py`, `tests/unit/test_domain_properties.py`, `tests/api/test_items_api.py` |
+| AC-3 | unit{% if use_redis %}, integration{% endif %} | `test_get_reads_through_cache`{% if use_redis %}, `tests/integration/test_redis.py`{% endif %} |
+| AC-4 | unit, api | `test_get_unknown_item_raises`, `test_unknown_item_returns_404` |
+| AC-5 | api{% if infra %}, integration{% endif %} | `tests/api/test_health.py`{{ it }} |
+| AC-6 | unit, api | `tests/unit/test_jwt_verifier.py`, `tests/api/test_security.py` |
+| AC-7 | api | `tests/api/test_security.py` |
+| AC-8 | unit, api | `tests/unit/test_item_service.py`, `tests/api/test_security.py` |
+| AC-9 | api | `tests/api/test_security.py` |
+| AC-10 | contract | `tests/api/test_openapi_contract.py` |
+{%- if broker %}
+| AC-11 | unit, integration | `tests/unit/test_worker.py`, `tests/integration/test_broker.py` |
+{%- endif %}
+{%- if use_postgres %}
+| Migrações | integration | `tests/integration/test_migrations.py`, `tests/integration/test_postgres.py` |
+{%- endif %}
+{%- if not infra %}
+| Composição | unit | `tests/unit/test_container.py` |
+{%- endif %}
+
+## Ameaças e abusos
+| Ameaça (OWASP API 2023) | Controle | Teste |
+|---|---|---|
+| Ler item alheio por id (API1) | filtro por `owner_id` no caso de uso → `404` | AC-8 |
+| Token forjado, `alg` trocado, expirado (API2) | `TokenVerifier` com allowlist de algoritmos e claims obrigatórias | AC-6 |
+| Definir `owner_id` pelo corpo (API3) | schema de entrada só com `name` | AC-1 |
+| Corpo enorme, volume (API4) | `APP_MAX_BODY_BYTES`; rate limit no gateway | AC-9 |
+| Exposição de docs e erros (API8) | `/docs` só local/test; problem+json | AC-9, AC-10 |
+
+- [x] T1 — Domínio `Item` + evento `ItemCreated`
+- [x] T2 — `ItemService` com ports e fakes em memória
+{%- if infra %}
+- [x] T3 — Adapters reais ({{ ((['Postgres + migração'] if use_postgres else []) + (['Redis'] if use_redis else []) + (['broker'] if broker else [])) | join(', ') }}) + container
+{%- else %}
+- [x] T3 — Container com os adapters em memória
+{%- endif %}
+- [x] T4 — API HTTP + health checks
+{%- if broker %}
+- [x] T5 — Worker de importação (`items.import`)
+{%- endif %}
+- [x] T{{ 6 if broker else 5 }} — Autenticação JWT/OIDC, escopos e dono do item
+- [x] T{{ 7 if broker else 6 }} — Erros problem+json, headers de segurança, limite de corpo
+- [x] T{{ 8 if broker else 7 }} — Testes de contrato{% if use_postgres %}, propriedades e migrações{% else %} e propriedades{% endif %}

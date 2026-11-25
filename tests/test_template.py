@@ -113,6 +113,26 @@ def test_renders_expected_layout(project: Path) -> None:
     assert not leftovers
 
 
+def test_reference_spec_describes_only_chosen_integrations(project: Path) -> None:
+    answers = SCENARIOS[project.name]
+    spec_dir = project / "docs/specs/001-items"
+    spec = (spec_dir / "spec.md").read_text()
+    plan = (spec_dir / "plan.md").read_text()
+    broker = answers["event_broker"] != "none"
+
+    assert ("items.import" in spec) is broker
+    assert ("**AC-11**" in spec) is broker
+    assert ("Tabela `items(" in spec) is answers["use_postgres"]
+    assert ("migrations/versions/" in spec) is answers["use_postgres"]
+    assert ("não há banco" in spec) is not answers["use_postgres"]
+    assert ("Cache de leitura: Redis" in spec) is answers["use_redis"]
+    criteria = re.findall(r"\*\*(AC-\d+)\*\*", spec)
+    assert criteria == [f"AC-{n}" for n in range(1, len(criteria) + 1)]
+    assert re.findall(r"^\| (AC-\d+) \|", plan, re.MULTILINE) == criteria
+    for test_file in re.findall(r"`(tests/[\w/]+\.py)`", plan):
+        assert (project / test_file).is_file(), test_file
+
+
 @pytest.mark.slow
 def test_generated_project_passes_its_own_gates(project: Path) -> None:
     if project.name not in {"minimal", "with-mcp", "all-agents"} and shutil.which("docker") is None:

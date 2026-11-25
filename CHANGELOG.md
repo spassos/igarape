@@ -7,6 +7,14 @@ their advisory or CVE identifier.
 
 ## [Unreleased]
 
+### Fixed
+
+- The reference spec and plan (`docs/specs/001-items/`) describe only the integrations chosen at
+  generation. An in-memory project no longer documents a PostgreSQL table, migrations, Redis or
+  the `items.import` worker, which led coding agents to write acceptance criteria the service
+  cannot meet. The worker criterion is now the last one (AC-11, with a broker), so AC-1 to AC-10
+  keep the same ids in every scenario.
+
 ## [0.1.0] - 2026-11-25
 
 First release of the `igarape` CLI and template.
