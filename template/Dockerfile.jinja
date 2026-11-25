@@ -18,15 +18,19 @@ ARG APP_VERSION=dev
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     APP_VERSION=${APP_VERSION}
-# The app runs from its own venv: drop the base image's pip (its vendored libraries carry
-# fixable CVEs that fail the image scan) so the runtime ships nothing it does not use.
-RUN python -m pip uninstall --yes --disable-pip-version-check --root-user-action=ignore pip \
+# Apply Debian security fixes released after the base image was built, and drop the base
+# image's pip (the app runs from its own venv; pip's vendored libraries carry fixable CVEs).
+# hadolint ignore=DL3005
+RUN apt-get update \
+    && apt-get upgrade --yes --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/* \
+    && python -m pip uninstall --yes --disable-pip-version-check --root-user-action=ignore pip \
     && groupadd --system app && useradd --system --gid app --no-create-home app
 WORKDIR /app
-COPY --from=build --chown=app:app /app/.venv /app/.venv
+COPY --from=build /app/.venv /app/.venv
 {%- if use_postgres %}
-COPY --chown=app:app alembic.ini ./
-COPY --chown=app:app migrations ./migrations
+COPY alembic.ini ./
+COPY migrations ./migrations
 {%- endif %}
 USER app
 EXPOSE 8000
