@@ -5,8 +5,7 @@
 # Subagent roles live in .codex/agents/*.toml.
 max_threads = 4
 max_depth = 1
-{%- for name, url in mcp_servers.items() %}
-
+{% for name, url in mcp_servers.items() %}
 [mcp_servers.{{ name | to_json(ensure_ascii=False) }}]
 url = {{ url | to_json(ensure_ascii=False) }}
-{% endfor -%}
+{% endfor %}
