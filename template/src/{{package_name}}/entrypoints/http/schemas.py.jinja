@@ -1,0 +1,32 @@
+"""Request/response contracts. Keep them separate from domain models."""
+
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+from {{ package_name }}.domain.items import NAME_MAX_LENGTH
+
+
+class ItemIn(BaseModel):
+    """Payload to create an item."""
+
+    name: str = Field(min_length=1, max_length=NAME_MAX_LENGTH)
+
+
+class ItemOut(BaseModel):
+    """Item representation returned by the API."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    created_at: datetime
+
+
+class Health(BaseModel):
+    """Liveness/readiness report."""
+
+    status: str
+    version: str
+    checks: dict[str, str] = {}

@@ -1,0 +1,156 @@
+[project]
+name = "{{ project_slug }}"
+version = "0.1.0"
+description = {{ description | to_json(ensure_ascii=False) }}
+readme = "README.md"
+requires-python = ">={{ python_version }}"
+authors = [{ name = {{ author_name | to_json(ensure_ascii=False) }} }]
+dependencies = [
+    "asgi-correlation-id>=4.3",
+    "fastapi>=0.115",
+    "httpx>=0.28",
+    "pydantic-settings>=2.6",
+    "stamina>=24.3",
+    "structlog>=24.4",
+    "uvicorn[standard]>=0.32",
+{%- if use_postgres %}
+    "alembic>=1.14",
+    "asyncpg>=0.30",
+    "sqlalchemy[asyncio]>=2.0.36",
+{%- endif %}
+{%- if use_redis %}
+    "redis>=5.2",
+{%- endif %}
+{%- if event_broker == 'kafka' %}
+    "faststream[kafka,cli]>=0.6",
+{%- elif event_broker == 'rabbit' %}
+    "faststream[rabbit,cli]>=0.6",
+{%- endif %}
+]
+
+[dependency-groups]
+dev = [
+    "import-linter>=2.1",
+    "mypy>=1.13",
+    "pip-audit>=2.7",
+    "pre-commit>=4.0",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "respx>=0.21",
+    "ruff>=0.8",
+{%- set containers = [] %}
+{%- if use_postgres %}{% set _ = containers.append('postgres') %}{% endif %}
+{%- if use_redis %}{% set _ = containers.append('redis') %}{% endif %}
+{%- if event_broker == 'kafka' %}{% set _ = containers.append('kafka') %}{% endif %}
+{%- if containers %}
+    "testcontainers[{{ containers | join(',') }}]>=4.8",
+{%- elif event_broker == 'rabbit' %}
+    "testcontainers>=4.8",
+{%- endif %}
+]
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+# ---------------------------------------------------------------- lint / PEP 8
+[tool.ruff]
+target-version = "py{{ python_version | replace('.', '') }}"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle (PEP 8)
+    "F",        # pyflakes
+    "I",        # isort
+    "N",        # pep8-naming
+    "D",        # pydocstyle (PEP 257)
+    "UP",       # pyupgrade
+    "B",        # bugbear
+    "S",        # bandit (security)
+    "BLE",      # blind except
+    "A",        # shadowing builtins
+    "C4", "SIM", "RET", "PTH", "ERA", "PIE", "PERF",
+    "C90",      # complexity
+    "ARG",      # unused arguments
+    "ASYNC",    # async pitfalls
+    "DTZ",      # naive datetimes
+    "T20",      # print
+    "TID",      # banned/relative imports
+    "PT",       # pytest style
+    "FAST",     # FastAPI
+    "RUF",
+]
+ignore = [
+    "D100", "D104", "D105", "D107",  # module/package/magic/__init__ docstrings
+    "D203", "D213",                  # pick D211 + D212
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "D", "ARG"]
+"migrations/**" = ["D", "ERA"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 8
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+# ---------------------------------------------------------------- types
+[tool.mypy]
+python_version = "{{ python_version }}"
+strict = true
+plugins = ["pydantic.mypy"]
+files = ["src", "tests"{% if use_postgres %}, "migrations"{% endif %}, "scripts"]
+
+[[tool.mypy.overrides]]
+module = ["testcontainers.*"]
+ignore_missing_imports = true
+
+# ---------------------------------------------------------------- architecture
+[tool.importlinter]
+root_package = "{{ package_name }}"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Hexagonal layers: entrypoints -> adapters -> application -> domain"
+type = "layers"
+layers = [
+    "{{ package_name }}.entrypoints",
+    "{{ package_name }}.adapters",
+    "{{ package_name }}.application",
+    "{{ package_name }}.domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "Domain and application stay framework-free"
+type = "forbidden"
+source_modules = ["{{ package_name }}.domain", "{{ package_name }}.application"]
+forbidden_modules = [
+    "fastapi", "httpx", "pydantic", "structlog",
+{%- if use_postgres %} "sqlalchemy",{% endif %}
+{%- if use_redis %} "redis",{% endif %}
+{%- if event_broker != 'none' %} "faststream",{% endif %}
+]
+
+# ---------------------------------------------------------------- tests
+[tool.pytest.ini_options]
+addopts = "-ra --strict-markers --strict-config"
+testpaths = ["tests"]
+markers = ["integration: needs Docker (testcontainers)"]
+filterwarnings = [
+    "error",
+    # Starlette suggests httpx2 for TestClient; keep httpx until the ecosystem settles (ADR 0002).
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["{{ package_name }}"]
+
+[tool.coverage.report]
+fail_under = {{ coverage_threshold }}
+show_missing = true
+skip_covered = true
+exclude_also = ["if TYPE_CHECKING:", "\\.\\.\\."]

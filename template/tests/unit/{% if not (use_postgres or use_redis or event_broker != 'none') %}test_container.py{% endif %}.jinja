@@ -1,0 +1,14 @@
+import pytest
+
+from {{ package_name }}.config import Settings
+from {{ package_name }}.container import build_container
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_build_container_wires_in_memory_adapters() -> None:
+    async with build_container(Settings(env="test")) as container:
+        item = await container.items.create("book")
+
+        assert await container.items.get(item.id) == item
+        assert container.health_checks == {}

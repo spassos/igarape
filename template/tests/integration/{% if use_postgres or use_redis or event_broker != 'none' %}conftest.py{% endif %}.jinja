@@ -1,0 +1,94 @@
+"""Real infrastructure via testcontainers (session-scoped, needs Docker)."""
+
+from collections.abc import Iterator
+{%- if use_postgres %}
+from pathlib import Path
+{%- endif %}
+
+import pytest
+{%- if use_postgres %}
+from alembic import command
+from alembic.config import Config
+{%- endif %}
+{%- if event_broker == 'kafka' %}
+from testcontainers.community.kafka import KafkaContainer
+{%- endif %}
+{%- if use_postgres %}
+from testcontainers.community.postgres import PostgresContainer
+{%- endif %}
+
+{%- if use_redis %}
+from testcontainers.community.redis import RedisContainer
+{%- endif %}
+{%- if event_broker == 'rabbit' %}
+from testcontainers.core.container import DockerContainer
+from testcontainers.core.wait_strategies import LogMessageWaitStrategy
+{%- endif %}
+
+from {{ package_name }}.config import Settings
+{%- if use_postgres %}
+
+ROOT = Path(__file__).parents[2]
+
+
+@pytest.fixture(scope="session")
+def database_url() -> Iterator[str]:
+    with PostgresContainer("postgres:17-alpine", driver="asyncpg") as postgres:
+        url = postgres.get_connection_url()
+        config = Config(ROOT / "alembic.ini")
+        config.set_main_option("sqlalchemy.url", url)
+        command.upgrade(config, "head")
+        yield url
+{%- endif %}
+{%- if use_redis %}
+
+
+@pytest.fixture(scope="session")
+def redis_url() -> Iterator[str]:
+    with RedisContainer("redis:7-alpine") as redis:
+        yield f"redis://{redis.get_container_host_ip()}:{redis.get_exposed_port(6379)}/0"
+{%- endif %}
+{%- if event_broker == 'kafka' %}
+
+
+@pytest.fixture(scope="session")
+def broker_url() -> Iterator[str]:
+    with KafkaContainer().with_kraft() as kafka:
+        yield kafka.get_bootstrap_server()
+{%- elif event_broker == 'rabbit' %}
+
+
+@pytest.fixture(scope="session")
+def broker_url() -> Iterator[str]:
+    rabbitmq = (
+        DockerContainer("rabbitmq:4-alpine")
+        .with_exposed_ports(5672)
+        .waiting_for(LogMessageWaitStrategy("Server startup complete"))
+    )
+    with rabbitmq as rabbit:
+        host, port = rabbit.get_container_host_ip(), rabbit.get_exposed_port(5672)
+        yield f"amqp://guest:guest@{host}:{port}/"
+{%- endif %}
+
+
+@pytest.fixture(scope="session")
+{%- set fixtures = [] %}
+{%- if use_postgres %}{% set _ = fixtures.append('database_url: str') %}{% endif %}
+{%- if use_redis %}{% set _ = fixtures.append('redis_url: str') %}{% endif %}
+{%- if event_broker != 'none' %}{% set _ = fixtures.append('broker_url: str') %}{% endif %}
+def settings({{ fixtures | join(', ') }}) -> Settings:
+    return Settings.model_validate(
+        {
+            "env": "test",
+            "version": "it-sha",
+{%- if use_postgres %}
+            "database_url": database_url,
+{%- endif %}
+{%- if use_redis %}
+            "redis_url": redis_url,
+{%- endif %}
+{%- if event_broker != 'none' %}
+            "broker_url": broker_url,
+{%- endif %}
+        }
+    )

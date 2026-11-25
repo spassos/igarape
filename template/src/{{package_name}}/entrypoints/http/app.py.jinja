@@ -1,0 +1,47 @@
+"""FastAPI application factory.
+
+Run locally with ``make run``; in production uvicorn uses ``create_app`` as factory.
+"""
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from asgi_correlation_id import CorrelationIdMiddleware
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
+
+from {{ package_name }}.config import Settings
+from {{ package_name }}.container import ContainerFactory, build_container
+from {{ package_name }}.domain.errors import DomainError, ItemNotFoundError
+from {{ package_name }}.entrypoints.http import health, items
+from {{ package_name }}.observability import configure_logging
+
+
+def create_app(
+    settings: Settings | None = None,
+    container_factory: ContainerFactory = build_container,
+) -> FastAPI:
+    """Build the API; tests inject an in-memory ``container_factory``."""
+    settings = settings or Settings()
+    configure_logging(settings)
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        async with container_factory(settings) as container:
+            app.state.container = container
+            yield
+
+    app = FastAPI(title={{ project_name | to_json(ensure_ascii=False) }}, version=settings.version, lifespan=lifespan)
+    app.add_middleware(CorrelationIdMiddleware)
+    app.include_router(health.router)
+    app.include_router(items.router)
+
+    @app.exception_handler(ItemNotFoundError)
+    async def not_found(_: Request, exc: ItemNotFoundError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=status.HTTP_404_NOT_FOUND)
+
+    @app.exception_handler(DomainError)
+    async def unprocessable(_: Request, exc: DomainError) -> JSONResponse:
+        return JSONResponse({"detail": str(exc)}, status_code=status.HTTP_422_UNPROCESSABLE_CONTENT)
+
+    return app

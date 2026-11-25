@@ -1,0 +1,20 @@
+name: Feature
+description: Nova capacidade (vira PRD/spec)
+labels: [feature]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema / oportunidade
+      description: Quem sofre, o que fazem hoje, qual o custo.
+    validations: { required: true }
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Resultado esperado e métrica
+    validations: { required: true }
+  - type: input
+    id: prd
+    attributes:
+      label: PRD / spec (se já existir)
+      placeholder: docs/product/<slug>.md

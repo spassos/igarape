@@ -1,0 +1,49 @@
+from collections.abc import Iterator
+
+import httpx
+import pytest
+import respx
+import stamina
+
+from {{ package_name }}.adapters.http_client import create_http_client, is_transient, retry_transient
+
+pytestmark = pytest.mark.anyio
+BASE_URL = "https://api.example.com"
+
+
+@pytest.fixture(autouse=True)
+def _no_retry_wait() -> Iterator[None]:
+    stamina.set_testing(True, attempts=3)
+    yield
+    stamina.set_testing(False)
+
+
+@retry_transient
+async def fetch_status() -> int:
+    async with create_http_client(BASE_URL) as client:
+        response = await client.get("/status")
+        response.raise_for_status()
+        return response.status_code
+
+
+@respx.mock
+async def test_retries_transient_errors_then_succeeds() -> None:
+    route = respx.get(f"{BASE_URL}/status").mock(
+        side_effect=[httpx.Response(503), httpx.ConnectError("boom"), httpx.Response(200)]
+    )
+
+    assert await fetch_status() == 200
+    assert route.call_count == 3
+
+
+@respx.mock
+async def test_does_not_retry_client_errors() -> None:
+    route = respx.get(f"{BASE_URL}/status").mock(return_value=httpx.Response(404))
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await fetch_status()
+    assert route.call_count == 1
+
+
+def test_unrelated_errors_are_not_transient() -> None:
+    assert not is_transient(ValueError("nope"))

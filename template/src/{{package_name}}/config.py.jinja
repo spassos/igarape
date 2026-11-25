@@ -1,0 +1,35 @@
+"""Typed settings loaded from environment variables (prefix ``APP_``)."""
+
+from typing import Literal
+{# blank line between stdlib and third-party imports #}
+{%- if use_postgres or use_redis or event_broker != 'none' %}
+from pydantic import SecretStr
+{%- endif %}
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    """Twelve-factor configuration. Secrets are SecretStr and never logged."""
+
+    model_config = SettingsConfigDict(env_prefix="APP_", env_file=".env", extra="ignore")
+
+    env: Literal["local", "test", "staging", "production"] = "local"
+    version: str = "0.0.0-dev"
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    cache_ttl_seconds: int = 300
+{%- if use_postgres %}
+    database_url: SecretStr = SecretStr("postgresql+asyncpg://app:app@localhost:5432/app")
+{%- endif %}
+{%- if use_redis %}
+    redis_url: SecretStr = SecretStr("redis://localhost:6379/0")
+{%- endif %}
+{%- if event_broker == 'kafka' %}
+    broker_url: SecretStr = SecretStr("localhost:9092")
+{%- elif event_broker == 'rabbit' %}
+    broker_url: SecretStr = SecretStr("amqp://guest:guest@localhost:5672/")
+{%- endif %}
+
+    @property
+    def json_logs(self) -> bool:
+        """Emit JSON logs everywhere except on a developer machine."""
+        return self.env != "local"

@@ -1,0 +1,18 @@
+name: Bug
+description: Comportamento incorreto
+labels: [bug]
+body:
+  - type: textarea
+    id: steps
+    attributes:
+      label: Como reproduzir
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes:
+      label: Esperado vs. obtido
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: Versão (GET /health/live)

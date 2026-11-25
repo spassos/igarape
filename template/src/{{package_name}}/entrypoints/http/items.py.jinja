@@ -1,0 +1,22 @@
+"""Item endpoints."""
+
+from uuid import UUID
+
+from fastapi import APIRouter, status
+
+from {{ package_name }}.entrypoints.http.dependencies import ItemServiceDep
+from {{ package_name }}.entrypoints.http.schemas import ItemIn, ItemOut
+
+router = APIRouter(prefix="/items", tags=["items"])
+
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+async def create_item(body: ItemIn, items: ItemServiceDep) -> ItemOut:
+    """Create an item and publish ``items.created``."""
+    return ItemOut.model_validate(await items.create(body.name))
+
+
+@router.get("/{item_id}")
+async def get_item(item_id: UUID, items: ItemServiceDep) -> ItemOut:
+    """Return one item."""
+    return ItemOut.model_validate(await items.get(item_id))

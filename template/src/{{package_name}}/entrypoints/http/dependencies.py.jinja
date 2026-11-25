@@ -1,0 +1,22 @@
+"""FastAPI dependencies resolved from the container."""
+
+from typing import Annotated, cast
+
+from fastapi import Depends, Request
+
+from {{ package_name }}.application.items import ItemService
+from {{ package_name }}.container import Container
+
+
+def get_container(request: Request) -> Container:
+    """Return the container created in the app lifespan."""
+    return cast("Container", request.app.state.container)
+
+
+def get_item_service(container: Annotated[Container, Depends(get_container)]) -> ItemService:
+    """Return the item use cases."""
+    return container.items
+
+
+ContainerDep = Annotated[Container, Depends(get_container)]
+ItemServiceDep = Annotated[ItemService, Depends(get_item_service)]

@@ -1,0 +1,8 @@
+{%- from 'includes/roles.jinja' import roles -%}
+{%- set role = roles.architect -%}
+name = "architect"
+description = "{{ role.description }}"
+sandbox_mode = "{{ 'read-only' if role.access == 'read-only' else 'workspace-write' }}"
+developer_instructions = """
+{{ role.instructions | trim }}
+"""

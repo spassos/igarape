@@ -1,0 +1,19 @@
+import pytest
+
+from {{ package_name }}.adapters.memory import InMemoryCache
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_cache_returns_value_within_ttl() -> None:
+    cache = InMemoryCache()
+    await cache.set("k", "v", ttl_seconds=60)
+
+    assert await cache.get("k") == "v"
+
+
+async def test_cache_expires_entries() -> None:
+    cache = InMemoryCache()
+    await cache.set("k", "v", ttl_seconds=-1)
+
+    assert await cache.get("k") is None

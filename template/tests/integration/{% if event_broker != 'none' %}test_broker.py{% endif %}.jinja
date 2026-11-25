@@ -1,0 +1,25 @@
+import asyncio
+from typing import Any
+
+import pytest
+
+from {{ package_name }}.adapters.broker import BrokerEventPublisher, create_broker, ping
+
+pytestmark = [pytest.mark.integration, pytest.mark.anyio]
+
+
+async def test_published_event_reaches_subscribers(broker_url: str) -> None:
+    broker = create_broker(broker_url)
+    received: asyncio.Queue[dict[str, Any]] = asyncio.Queue()
+
+    @broker.subscriber("it.events"{% if event_broker == 'kafka' %}, auto_offset_reset="earliest"{% endif %})
+    async def collect(message: dict[str, Any]) -> None:
+        await received.put(message)
+
+    await broker.start()
+    try:
+        await ping(broker)
+        await BrokerEventPublisher(broker).publish("it.events", {"hello": "world"})
+        assert await asyncio.wait_for(received.get(), timeout=30) == {"hello": "world"}
+    finally:
+        await broker.stop()

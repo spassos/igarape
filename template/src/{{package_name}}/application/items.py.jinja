@@ -1,0 +1,59 @@
+"""Item use cases."""
+
+import json
+from datetime import datetime
+from uuid import UUID
+
+from {{ package_name }}.application.ports import Cache, EventPublisher, ItemRepository
+from {{ package_name }}.domain.errors import ItemNotFoundError
+from {{ package_name }}.domain.items import Item, ItemCreated
+
+
+class ItemService:
+    """Create and read items (cache-aside on reads, event on writes)."""
+
+    def __init__(
+        self,
+        repository: ItemRepository,
+        cache: Cache,
+        publisher: EventPublisher,
+        cache_ttl_seconds: int = 300,
+    ) -> None:
+        self._repository = repository
+        self._cache = cache
+        self._publisher = publisher
+        self._cache_ttl_seconds = cache_ttl_seconds
+
+    async def create(self, name: str) -> Item:
+        """Persist a new item and announce it."""
+        item = Item(name=name)
+        await self._repository.add(item)
+        event = ItemCreated.from_item(item)
+        await self._publisher.publish(event.topic, event.payload())
+        return item
+
+    async def get(self, item_id: UUID) -> Item:
+        """Return an item, serving from cache when possible."""
+        key = f"items:{item_id}"
+        if cached := await self._cache.get(key):
+            return _decode(cached)
+        item = await self._repository.get(item_id)
+        if item is None:
+            raise ItemNotFoundError(item_id)
+        await self._cache.set(key, _encode(item), self._cache_ttl_seconds)
+        return item
+
+
+def _encode(item: Item) -> str:
+    return json.dumps(
+        {"id": str(item.id), "name": item.name, "created_at": item.created_at.isoformat()}
+    )
+
+
+def _decode(raw: str) -> Item:
+    data = json.loads(raw)
+    return Item(
+        id=UUID(data["id"]),
+        name=data["name"],
+        created_at=datetime.fromisoformat(data["created_at"]),
+    )

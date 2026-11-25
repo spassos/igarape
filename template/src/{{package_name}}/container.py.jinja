@@ -1,0 +1,74 @@
+"""Composition root: the only place that picks concrete adapters."""
+
+from collections.abc import AsyncIterator, Callable, Mapping
+from contextlib import AbstractAsyncContextManager, AsyncExitStack, asynccontextmanager
+from dataclasses import dataclass
+{%- if use_postgres or use_redis or event_broker != 'none' %}
+from functools import partial
+{%- endif %}
+{# blank line between stdlib and first-party imports #}
+{%- if event_broker != 'none' %}
+from {{ package_name }}.adapters import broker as broker_adapter
+{%- endif %}
+{%- set adapters = [] %}
+{%- if not (use_postgres and use_redis and event_broker != 'none') %}{% set _ = adapters.append('memory') %}{% endif %}
+{%- if use_postgres %}{% set _ = adapters.append('postgres') %}{% endif %}
+{%- if use_redis %}{% set _ = adapters.append('redis_cache') %}{% endif %}
+from {{ package_name }}.adapters import {{ adapters | join(', ') }}
+from {{ package_name }}.application.items import ItemService
+from {{ package_name }}.application.ports import HealthCheck
+from {{ package_name }}.config import Settings
+
+
+@dataclass(frozen=True, slots=True)
+class Container:
+    """Application services plus readiness checks for their dependencies."""
+
+    items: ItemService
+    health_checks: Mapping[str, HealthCheck]
+
+
+ContainerFactory = Callable[[Settings], AbstractAsyncContextManager[Container]]
+
+
+@asynccontextmanager
+{%- if event_broker != 'none' %}
+async def build_container(
+    settings: Settings, broker: broker_adapter.Broker | None = None
+) -> AsyncIterator[Container]:
+{%- else %}
+async def build_container(settings: Settings) -> AsyncIterator[Container]:
+{%- endif %}
+    """Wire adapters from settings and release them on exit."""
+    checks: dict[str, HealthCheck] = {}
+    async with AsyncExitStack(){% if use_postgres or use_redis or event_broker != 'none' %} as stack{% endif %}:
+{%- if use_postgres %}
+        engine = postgres.create_engine(settings.database_url.get_secret_value())
+        stack.push_async_callback(engine.dispose)
+        repository = postgres.PostgresItemRepository(engine)
+        checks["postgres"] = partial(postgres.ping, engine)
+{%- else %}
+        repository = memory.InMemoryItemRepository()
+{%- endif %}
+{%- if use_redis %}
+        redis = redis_cache.create_redis(settings.redis_url.get_secret_value())
+        stack.push_async_callback(redis.aclose)
+        cache = redis_cache.RedisCache(redis)
+        checks["redis"] = partial(redis_cache.ping, redis)
+{%- else %}
+        cache = memory.InMemoryCache()
+{%- endif %}
+{%- if event_broker != 'none' %}
+        if broker is None:
+            broker = broker_adapter.create_broker(settings.broker_url.get_secret_value())
+            await broker.connect()
+            stack.push_async_callback(broker.stop)
+        publisher = broker_adapter.BrokerEventPublisher(broker)
+        checks["broker"] = partial(broker_adapter.ping, broker)
+{%- else %}
+        publisher = memory.InMemoryEventPublisher()
+{%- endif %}
+        yield Container(
+            items=ItemService(repository, cache, publisher, settings.cache_ttl_seconds),
+            health_checks=checks,
+        )

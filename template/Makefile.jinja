@@ -1,0 +1,90 @@
+# Single entry point for humans, agents and CI. `make help` lists targets.
+.DEFAULT_GOAL := help
+SHELL := /bin/bash
+.SHELLFLAGS := -eu -o pipefail -c
+UV := uv run --frozen
+APP := {{ package_name }}.entrypoints.http.app:create_app
+
+.PHONY: help
+help: ## List targets
+	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+
+.PHONY: bootstrap
+bootstrap: ## Initialize Git and install dependencies
+	@test -e .git || git init -q -b main
+	uv sync --all-groups
+
+.PHONY: setup
+setup: bootstrap ## Install dependencies and Git hooks
+	$(UV) pre-commit install --install-hooks
+
+.PHONY: fmt
+fmt: ## Auto-fix formatting and lint
+	$(UV) ruff format .
+	$(UV) ruff check --fix .
+
+.PHONY: lint
+lint: ## Ruff lint + format check (PEP 8 / PEP 257 / bandit)
+	$(UV) ruff format --check .
+	$(UV) ruff check .
+
+.PHONY: typecheck
+typecheck: ## mypy --strict
+	$(UV) mypy
+
+.PHONY: arch
+arch: ## Enforce hexagonal layering (import-linter)
+	$(UV) lint-imports
+
+.PHONY: audit
+audit: ## Known-vulnerability scan of the locked dependency tree
+	uv lock --check
+	uv export --frozen --all-groups --no-emit-project --format requirements-txt -q \
+		| $(UV) pip-audit --strict --disable-pip --require-hashes -r /dev/stdin
+
+.PHONY: test-unit
+test-unit: ## Fast feedback: unit + API tests, no Docker
+	$(UV) pytest -m "not integration"
+
+.PHONY: test
+test: ## Full suite incl. integration (Docker) with coverage gate
+	$(UV) pytest --cov --cov-report=term --cov-report=xml
+
+.PHONY: check
+check: lint typecheck arch audit test ## Everything CI runs: the Definition of Done gate
+
+.PHONY: run
+run: ## Run the API with reload
+	$(UV) uvicorn --factory $(APP) --reload
+{%- if event_broker != 'none' %}
+
+.PHONY: worker
+worker: ## Run the event consumer
+	$(UV) faststream run --factory {{ package_name }}.entrypoints.worker:create_worker
+{%- endif %}
+{%- if use_postgres %}
+
+.PHONY: migrate
+migrate: ## Apply database migrations
+	$(UV) alembic upgrade head
+
+.PHONY: migration
+migration: ## New migration: make migration m="add orders table"
+	$(UV) alembic revision --autogenerate -m "$(m)"
+{%- endif %}
+
+.PHONY: up
+up: ## Start the app and its infrastructure (compose)
+	docker compose up -d --build --wait
+
+.PHONY: down
+down: ## Stop everything and drop volumes
+	docker compose down -v
+
+.PHONY: image
+image: ## Build the container image
+	docker build --build-arg APP_VERSION=$$(git rev-parse --short HEAD 2>/dev/null || echo dev) -t {{ project_slug }}:local .
+
+.PHONY: smoke
+smoke: ## Verify a deployment: make smoke url=https://... version=<sha>
+	$(UV) python scripts/smoke.py --url "$(url)" --version "$(version)"

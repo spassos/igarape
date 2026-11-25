@@ -1,0 +1,53 @@
+"""In-memory adapters for local runs and fast tests."""
+
+import time
+from collections.abc import Mapping
+from typing import Any
+from uuid import UUID
+
+from {{ package_name }}.domain.items import Item
+
+
+class InMemoryItemRepository:
+    """Dict-backed ItemRepository."""
+
+    def __init__(self) -> None:
+        self.items: dict[UUID, Item] = {}
+
+    async def add(self, item: Item) -> None:
+        """Store the item."""
+        self.items[item.id] = item
+
+    async def get(self, item_id: UUID) -> Item | None:
+        """Look the item up."""
+        return self.items.get(item_id)
+
+
+class InMemoryCache:
+    """Dict-backed Cache honoring TTLs."""
+
+    def __init__(self) -> None:
+        self._entries: dict[str, tuple[str, float]] = {}
+
+    async def get(self, key: str) -> str | None:
+        """Return the value unless expired."""
+        entry = self._entries.get(key)
+        if entry is None or entry[1] < time.monotonic():
+            self._entries.pop(key, None)
+            return None
+        return entry[0]
+
+    async def set(self, key: str, value: str, ttl_seconds: int) -> None:
+        """Store the value until ttl_seconds from now."""
+        self._entries[key] = (value, time.monotonic() + ttl_seconds)
+
+
+class InMemoryEventPublisher:
+    """Records published events instead of sending them."""
+
+    def __init__(self) -> None:
+        self.published: list[tuple[str, Mapping[str, Any]]] = []
+
+    async def publish(self, topic: str, payload: Mapping[str, Any]) -> None:
+        """Record the event."""
+        self.published.append((topic, payload))

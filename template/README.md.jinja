@@ -1,0 +1,89 @@
+# {{ project_name }}
+
+{{ description }}.
+
+Python {{ python_version }} · FastAPI · arquitetura hexagonal
+{%- if use_postgres %} · PostgreSQL{% endif %}
+{%- if use_redis %} · Redis{% endif %}
+{%- if event_broker == 'kafka' %} · Kafka{% elif event_broker == 'rabbit' %} · RabbitMQ{% endif %}
+ · pronto para agentes de código: {% for a in agents %}**{{ {'codex': 'Codex'}[a] }}**{% if not loop.last %}, {% endif %}{% endfor %}.
+
+## Começando
+
+Pré-requisitos: [uv](https://docs.astral.sh/uv/), Git, make e o CLI do seu agente de código{% if 'codex' in agents %} ([Codex CLI](https://developers.openai.com/codex)){% endif %}.
+{% if use_postgres or use_redis or event_broker != 'none' -%}
+Este perfil usa Docker e Docker Compose.
+
+```bash
+make bootstrap    # inicializa Git e resolve dependências
+make up           # app + infraestrutura em Docker
+```
+
+Para rodar a API com reload, copie `.env.example` para `.env`, suba só a infraestrutura com
+`docker compose up -d --wait{% if use_postgres %} postgres{% endif %}{% if use_redis %} redis{% endif %}{% if event_broker != 'none' %} broker{% endif %}`
+{%- if use_postgres %}, execute `make migrate`{% endif %} e rode `make run`{% if event_broker != 'none' %} e `make worker`{% endif %} em terminais separados quando necessário.
+{% else %}
+A API usa armazenamento em memória e roda sem Docker.
+
+```bash
+make bootstrap    # inicializa Git e resolve dependências
+make run          # inicia a API com reload
+```
+{% endif %}
+Abra a documentação em http://localhost:8000/docs. Use `make test-unit` para feedback rápido e
+`make check` para lint, tipos, arquitetura, auditoria, testes e cobertura. Para instalar os hooks
+locais, use `make setup`. `make help` lista todos os comandos.
+
+{% if 'codex' in agents -%}
+## Abrir no Codex
+
+Abra a raiz deste repositório no Codex e confirme a confiança no projeto para carregar sua
+configuração local. No terminal, execute `codex` nesta pasta. O `AGENTS.md` orienta a escolha
+da skill. Use `$discovery` para explorar uma ideia de produto e `$implement` para uma correção
+local bem definida. A spec de referência e seu plano ficam em `docs/specs/001-items/`.
+{% if mcp_servers %}
+Servidores MCP configurados neste projeto: {% for name in mcp_servers %}`{{ name }}`{% if not loop.last %}, {% endif %}{% endfor %}.
+Confira-os com `codex mcp list` na raiz do projeto confiável. Para servidores com OAuth, use
+`codex mcp login NOME`. Guarde credenciais na configuração do ambiente.
+{% endif %}
+{% endif -%}
+## Como trabalhamos
+
+Para uma correção local bem definida, comece em `$implement` com um teste de regressão. Mudanças
+de contrato público, migrações e decisões arquiteturais passam por especificação e plano aprovados.
+O fluxo completo está em [`docs/ways-of-working.md`](docs/ways-of-working.md).
+
+| Fase | Skill | Artefato |
+|---|---|---|
+| Discovery | `$discovery` | `docs/product/` |
+| Especificação | `$specify` | `docs/specs/NNN-*/spec.md` |
+| Plano/ADR | `$plan` | `plan.md`, `docs/adr/` |
+| Implementação | `$implement`, `$integrate` | código + testes |
+| Revisão | `$review` | PR |
+| Entrega | `$ship` | Merge com CI verde; produção verificada quando o CD está ativo |
+
+Regras para agentes e pessoas: [`AGENTS.md`](AGENTS.md) · Convenções: [`docs/conventions.md`](docs/conventions.md).
+
+## Estrutura
+
+```
+src/{{ package_name }}/
+  domain/          regras de negócio puras
+  application/     casos de uso + ports (Protocols)
+  adapters/        Postgres, Redis, broker, HTTP, memória
+  entrypoints/     API HTTP{% if event_broker != 'none' %}, worker de eventos{% endif %}
+  container.py     composição (escolha dos adapters)
+  config.py        settings (APP_*)
+tests/{unit,api,integration}
+docs/{product,specs,adr}
+.agents/skills/    skills por fase do SDLC, compartilhadas entre agentes
+{%- if 'codex' in agents %}
+.codex/            config do Codex + subagents
+{%- endif %}
+```
+
+## Entrega
+
+Cada merge roda o CI. Configure as variáveis do repositório `ENABLE_CD=true` para publicar a
+imagem e implantar em staging e produção, e `ENABLE_RELEASES=true` para releases automáticas. Detalhes
+em [`docs/ways-of-working.md#entrega-cicd`](docs/ways-of-working.md#entrega-cicd).

@@ -1,0 +1,58 @@
+# AI code review with Codex (openai/codex-action). Opt-in:
+#   repo secret OPENAI_API_KEY + repo variable CODEX_REVIEW=true
+name: Codex review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+
+permissions: {}
+
+jobs:
+  review:
+    if: >-
+      vars.CODEX_REVIEW == 'true' && !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      final_message: ${{ steps.codex.outputs.final-message }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          persist-credentials: false
+      - name: Fetch base and head
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags origin "$BASE_REF" "+refs/pull/$PR_NUMBER/head"
+      - id: codex
+        uses: openai/codex-action@10cb888d2ed3b99867f7e7ccff174a861a75aeb6 # v1.9
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          sandbox: read-only
+          prompt: |
+            Review pull request #${{ github.event.pull_request.number }} of ${{ github.repository }}.
+            Diff: git diff ${{ github.event.pull_request.base.sha }}...${{ github.event.pull_request.head.sha }}
+            Follow the instructions in .github/codex/prompts/review.md exactly.
+
+  comment:
+    needs: review
+    if: needs.review.outputs.final_message != ''
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          BODY: ${{ needs.review.outputs.final_message }}
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body: process.env.BODY,
+            });

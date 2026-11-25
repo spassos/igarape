@@ -1,0 +1,47 @@
+name: Template CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+jobs:
+  render:
+    name: Render scenarios
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: uv sync --locked
+      - run: uv run ruff check . && uv run ruff format --check .
+      - run: uv run pytest
+      - name: Generate and start the default API
+        run: uv run pytest -m smoke
+      - name: Generated workflows security (zizmor)
+        run: uvx zizmor --offline --min-severity medium template/.github/workflows .github/workflows
+
+  generated-project:
+    name: make check (${{ matrix.scenario }})
+    needs: render
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        scenario: [full-kafka, minimal, with-mcp, postgres-rabbit, redis-only]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+      - run: uv sync --locked
+      - run: uv run pytest -m slow -k "$SCENARIO"
+        env:
+          SCENARIO: ${{ matrix.scenario }}

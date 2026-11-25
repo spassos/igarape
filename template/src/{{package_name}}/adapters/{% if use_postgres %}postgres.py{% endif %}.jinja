@@ -1,0 +1,52 @@
+"""PostgreSQL adapter (SQLAlchemy Core, async). Schema changes go through Alembic."""
+
+from uuid import UUID
+
+from sqlalchemy import Column, DateTime, MetaData, String, Table, Uuid, insert, select, text
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+
+from {{ package_name }}.domain.items import NAME_MAX_LENGTH, Item
+
+metadata = MetaData()
+
+items_table = Table(
+    "items",
+    metadata,
+    Column("id", Uuid, primary_key=True),
+    Column("name", String(NAME_MAX_LENGTH), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)
+
+
+def create_engine(url: str) -> AsyncEngine:
+    """Create a pooled async engine."""
+    return create_async_engine(url, pool_pre_ping=True)
+
+
+async def ping(engine: AsyncEngine) -> None:
+    """Fail when the database is unreachable."""
+    async with engine.connect() as conn:
+        await conn.execute(text("SELECT 1"))
+
+
+class PostgresItemRepository:
+    """ItemRepository backed by PostgreSQL."""
+
+    def __init__(self, engine: AsyncEngine) -> None:
+        self._engine = engine
+
+    async def add(self, item: Item) -> None:
+        """Insert the item in its own transaction."""
+        async with self._engine.begin() as conn:
+            await conn.execute(
+                insert(items_table).values(id=item.id, name=item.name, created_at=item.created_at)
+            )
+
+    async def get(self, item_id: UUID) -> Item | None:
+        """Fetch the item by id."""
+        async with self._engine.connect() as conn:
+            result = await conn.execute(select(items_table).where(items_table.c.id == item_id))
+            row = result.one_or_none()
+        if row is None:
+            return None
+        return Item(id=row.id, name=row.name, created_at=row.created_at)

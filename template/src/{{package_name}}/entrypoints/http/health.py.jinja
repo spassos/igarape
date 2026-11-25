@@ -1,0 +1,36 @@
+"""Liveness and readiness probes (used by k8s and by the CD smoke test)."""
+
+import asyncio
+
+import structlog
+from fastapi import APIRouter, Request, Response, status
+
+from {{ package_name }}.entrypoints.http.dependencies import ContainerDep
+from {{ package_name }}.entrypoints.http.schemas import Health
+
+router = APIRouter(prefix="/health", tags=["health"])
+logger = structlog.get_logger()
+CHECK_TIMEOUT_SECONDS = 2.0
+
+
+@router.get("/live")
+async def live(request: Request) -> Health:
+    """Process is up; reports the deployed version."""
+    return Health(status="ok", version=request.app.version)
+
+
+@router.get("/ready")
+async def ready(request: Request, container: ContainerDep, response: Response) -> Health:
+    """Every dependency answers; 503 otherwise."""
+    results: dict[str, str] = {}
+    for name, check in container.health_checks.items():
+        try:
+            await asyncio.wait_for(check(), CHECK_TIMEOUT_SECONDS)
+            results[name] = "ok"
+        except Exception:  # any failure means "not ready"
+            logger.warning("readiness_check_failed", dependency=name, exc_info=True)
+            results[name] = "error"
+    healthy = all(result == "ok" for result in results.values())
+    if not healthy:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    return Health(status="ok" if healthy else "error", version=request.app.version, checks=results)

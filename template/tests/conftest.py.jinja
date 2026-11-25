@@ -1,0 +1,49 @@
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
+from dataclasses import dataclass, field
+
+import pytest
+from fastapi.testclient import TestClient
+
+from {{ package_name }}.adapters.memory import (
+    InMemoryCache,
+    InMemoryEventPublisher,
+    InMemoryItemRepository,
+)
+from {{ package_name }}.application.items import ItemService
+from {{ package_name }}.config import Settings
+from {{ package_name }}.container import Container
+from {{ package_name }}.entrypoints.http.app import create_app
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
+
+
+@dataclass
+class Fakes:
+    repository: InMemoryItemRepository = field(default_factory=InMemoryItemRepository)
+    cache: InMemoryCache = field(default_factory=InMemoryCache)
+    publisher: InMemoryEventPublisher = field(default_factory=InMemoryEventPublisher)
+
+
+@pytest.fixture
+def fakes() -> Fakes:
+    return Fakes()
+
+
+@pytest.fixture
+def service(fakes: Fakes) -> ItemService:
+    return ItemService(fakes.repository, fakes.cache, fakes.publisher, cache_ttl_seconds=60)
+
+
+@pytest.fixture
+def client(service: ItemService) -> Iterator[TestClient]:
+    @asynccontextmanager
+    async def in_memory(_: Settings) -> AsyncIterator[Container]:
+        yield Container(items=service, health_checks={})
+
+    app = create_app(Settings(env="test", version="test-sha"), container_factory=in_memory)
+    with TestClient(app) as test_client:
+        yield test_client

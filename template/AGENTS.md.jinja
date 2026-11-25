@@ -1,0 +1,74 @@
+# AGENTS.md — {{ project_name }}
+
+{{ description }}. Python {{ python_version }} · FastAPI · hexagonal architecture · uv.
+Read this file before every task. Details live in `docs/`; do not duplicate them here.
+
+## Commands (the only ones you need)
+
+| Goal | Command |
+|---|---|
+| Initialize Git and install dependencies | `make bootstrap` |
+| Install dependencies and Git hooks | `make setup` |
+| Fast loop (no Docker) | `make test-unit` |
+| Auto-fix style | `make fmt` |
+| **Definition of Done gate** | `make check` (lint, mypy strict, import-linter, pip-audit, full tests + coverage ≥ {{ coverage_threshold }}%) |
+| Run API locally | {% if use_postgres or use_redis or event_broker != 'none' %}`make up` (all in Docker) or start infrastructure first, then `make run`{% else %}`make run` (in memory, without Docker){% endif %} |
+{%- if event_broker != 'none' %}
+| Run event consumer | `make worker` |
+{%- endif %}
+{%- if use_postgres %}
+| DB migration | `make migration m="..."` then `make migrate` |
+{%- endif %}
+
+Always use `uv` (`uv add <pkg>`, `uv add --dev <pkg>`); never `pip install`. Never edit `uv.lock` by hand.
+
+## Choose the workflow
+
+- For a clearly requested local fix with no public contract, migration or architectural change, start with `$implement`. Add a regression test and run `make check`. Use the request and the test as the review reference.
+- For a change to a public API, event or data contract, a migration, or an architectural decision, use `$specify` and `$plan` and get the resulting spec and plan approved before implementation.
+- Use `$discovery` when the problem or desired product outcome needs definition. Clarify ambiguous requirements before writing code.
+
+### Planned changes
+
+| Phase | Skill | Output | Gate |
+|---|---|---|---|
+| 1. Discovery | `$discovery` | `docs/product/<slug>.md` (PRD) | Human approves problem & metrics |
+| 2. Specify | `$specify` | `docs/specs/NNN-<slug>/spec.md` | Human approves acceptance criteria |
+| 3. Plan | `$plan` | `docs/specs/NNN-<slug>/plan.md` (+ ADR if needed) | Human approves plan |
+| 4. Implement | `$implement` (`$integrate` for new I/O) | Code + tests, one task at a time | `make check` green |
+| 5. Review | `$review` | Review report, fixes | No blocking findings |
+| 6. Ship | `$ship` | Merge with green CI; follow enabled delivery jobs | With CD enabled, verify the deployed version and readiness |
+
+Subagent roles{% if 'codex' in agents %} (Codex: `.codex/agents/`){% endif %} include `architect` for design, `test_engineer` for tests,
+`reviewer` for correctness, and `security_auditor` for security. Use them when the task benefits
+from independent analysis.
+
+## Architecture (enforced by `make arch`)
+
+```
+entrypoints/ (FastAPI{% if event_broker != 'none' %}, FastStream worker{% endif %})  ->  application/ (use cases + ports)  ->  domain/ (pure rules)
+adapters/ (Postgres, Redis, broker, HTTP, memory) implement application/ports.py
+container.py is the ONLY place that chooses adapters (composition root)
+```
+
+- `domain/` and `application/` import no framework (`fastapi`, `pydantic`, `sqlalchemy`, `redis`, `httpx`, `faststream`, `structlog`).
+- New external dependency = new **port** (Protocol) in `application/ports.py` + adapter + in-memory fake + integration test. See `$integrate`.
+- Transport schemas (pydantic) live in `entrypoints/`; domain models are dataclasses.
+
+## Conventions (full list: `docs/conventions.md`)
+
+- Clean code: small functions (complexity ≤ 8), intention-revealing names, no comments that restate code, no dead code.
+- Typing: `mypy --strict` clean; no `Any` in signatures unless crossing an untyped boundary; no `# type: ignore` without a reason.
+- Errors: raise domain errors (`domain/errors.py`); map them to HTTP/messages only in `entrypoints/`. Never swallow exceptions.
+- Config: only via `Settings` (`APP_*` env vars). Secrets are `SecretStr`. Nothing secret in code, logs, tests or fixtures.
+- Logging: `structlog.get_logger()` with snake_case event names and key/value context. No `print`.
+- I/O: async everywhere; explicit timeouts on every network call; retries only for idempotent operations (`retry_transient`).
+- Tests: AAA, one behavior per test, named after the behavior. Unit tests use the in-memory adapters; real infra only in `tests/integration` (testcontainers, `@pytest.mark.integration`). Each acceptance criterion of the spec maps to at least one test.
+- Commits & PR titles: Conventional Commits (`feat:`, `fix:`, `refactor:`, `test:`, `docs:`, `build:`, `ci:`, `chore:`). One focused change per PR.
+
+## Guardrails
+
+- Do not disable, skip or weaken tests, lint rules, coverage or security checks to get green. Fix the cause.
+- Do not add a dependency without checking it is maintained, licensed compatibly, and `make audit` stays clean.
+- Do not touch `.github/workflows/` or `scripts/deploy.sh` unless the task explicitly includes them.
+- Ask a human when requirements are ambiguous, a migration is destructive, or a public contract (API/event) changes incompatibly.

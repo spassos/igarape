@@ -1,0 +1,43 @@
+{%- set TestBroker = 'TestKafkaBroker' if event_broker == 'kafka' else 'TestRabbitBroker' -%}
+import pytest
+from faststream import TestApp
+from faststream.{{ event_broker }} import {{ TestBroker }}
+
+from {{ package_name }}.adapters.broker import create_broker
+from {{ package_name }}.application.items import ItemService
+from {{ package_name }}.config import Settings
+from {{ package_name }}.entrypoints.worker import IMPORT_TOPIC, create_worker, register_handlers
+from tests.conftest import Fakes
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_import_command_creates_item(service: ItemService, fakes: Fakes) -> None:
+    broker = create_broker(Settings().broker_url.get_secret_value())
+    register_handlers(broker, service)
+
+    async with {{ TestBroker }}(broker) as test_broker:
+        await test_broker.publish({"name": "book"}, IMPORT_TOPIC)
+
+    [item] = fakes.repository.items.values()
+    assert item.name == "book"
+    assert fakes.publisher.published[0][0] == "items.created"
+
+
+async def test_invalid_command_is_rejected(service: ItemService, fakes: Fakes) -> None:
+    broker = create_broker(Settings().broker_url.get_secret_value())
+    register_handlers(broker, service)
+
+    async with {{ TestBroker }}(broker) as test_broker:
+        with pytest.raises(ValueError, match="name"):
+            await test_broker.publish({"name": ""}, IMPORT_TOPIC)
+
+    assert not fakes.repository.items
+
+
+async def test_worker_lifespan_wires_container() -> None:
+    settings = Settings(env="test")
+    broker = create_broker(settings.broker_url.get_secret_value())
+
+    async with {{ TestBroker }}(broker), TestApp(create_worker(settings, broker)):
+        assert broker.subscribers

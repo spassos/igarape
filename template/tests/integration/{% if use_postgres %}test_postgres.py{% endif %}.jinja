@@ -1,0 +1,27 @@
+from collections.abc import AsyncIterator
+from uuid import uuid4
+
+import pytest
+
+from {{ package_name }}.adapters.postgres import PostgresItemRepository, create_engine
+from {{ package_name }}.domain.items import Item
+
+pytestmark = [pytest.mark.integration, pytest.mark.anyio]
+
+
+@pytest.fixture
+async def repository(database_url: str) -> AsyncIterator[PostgresItemRepository]:
+    engine = create_engine(database_url)
+    yield PostgresItemRepository(engine)
+    await engine.dispose()
+
+
+async def test_add_then_get(repository: PostgresItemRepository) -> None:
+    item = Item(name="book")
+    await repository.add(item)
+
+    assert await repository.get(item.id) == item
+
+
+async def test_get_missing_returns_none(repository: PostgresItemRepository) -> None:
+    assert await repository.get(uuid4()) is None

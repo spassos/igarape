@@ -1,0 +1,41 @@
+"""Ports: contracts the application needs from the outside world."""
+
+from collections.abc import Awaitable, Callable, Mapping
+from typing import Any, Protocol
+from uuid import UUID
+
+from {{ package_name }}.domain.items import Item
+
+HealthCheck = Callable[[], Awaitable[None]]
+
+
+class ItemRepository(Protocol):
+    """Persistence for items."""
+
+    async def add(self, item: Item) -> None:
+        """Persist a new item."""
+        ...
+
+    async def get(self, item_id: UUID) -> Item | None:
+        """Return the item or None when absent."""
+        ...
+
+
+class Cache(Protocol):
+    """Key/value cache with expiration."""
+
+    async def get(self, key: str) -> str | None:
+        """Return the cached value or None."""
+        ...
+
+    async def set(self, key: str, value: str, ttl_seconds: int) -> None:
+        """Store a value for ttl_seconds."""
+        ...
+
+
+class EventPublisher(Protocol):
+    """Outbound integration events."""
+
+    async def publish(self, topic: str, payload: Mapping[str, Any]) -> None:
+        """Publish payload to topic."""
+        ...

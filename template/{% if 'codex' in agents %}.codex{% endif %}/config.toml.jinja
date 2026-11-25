@@ -1,0 +1,12 @@
+# Project-scoped Codex config (applies once you trust this project in Codex).
+# Personal settings and credentials belong in the user's Codex environment.
+
+[agents]
+# Subagent roles live in .codex/agents/*.toml.
+max_threads = 4
+max_depth = 1
+{%- for name, url in mcp_servers.items() %}
+
+[mcp_servers.{{ name | to_json(ensure_ascii=False) }}]
+url = {{ url | to_json(ensure_ascii=False) }}
+{% endfor -%}

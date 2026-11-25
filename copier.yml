@@ -1,0 +1,82 @@
+# Copier template: https://copier.readthedocs.io
+_subdirectory: template
+_min_copier_version: "9.4"
+_answers_file: .copier-answers.yml
+_envops:
+  keep_trailing_newline: true
+
+project_name:
+  type: str
+  help: 'Nome do produto/serviço (ex.: "Orders Service")'
+  validator: "{% if not project_name.strip() %}Obrigatório{% endif %}"
+
+project_slug:
+  type: str
+  help: 'Nome do repositório/imagem (kebab-case)'
+  default: "{{ project_name.strip().lower().replace(' ', '-').replace('_', '-') }}"
+  validator: >-
+    {% if project_slug != project_slug.lower() or not project_slug.replace('-', '').isalnum()
+    or not project_slug[:1].isalpha() %}Use kebab-case (ex.: orders-service){% endif %}
+
+package_name:
+  type: str
+  help: 'Nome do pacote Python (snake_case)'
+  default: "{{ project_slug.replace('-', '_') }}"
+  validator: >-
+    {% if package_name != package_name.lower() or not package_name.isidentifier() %}Use snake_case
+    (ex.: orders_service){% endif %}
+
+description:
+  type: str
+  help: 'Descrição curta (uma frase)'
+  default: "Serviço {{ project_name }}"
+
+author_name:
+  type: str
+  help: 'Time ou pessoa responsável'
+  default: "Platform Team"
+
+python_version:
+  type: str
+  help: 'Versão do Python'
+  choices: ["3.12", "3.13", "3.14"]
+  default: "3.13"
+
+agents:
+  type: str
+  help: 'Agentes de código suportados no projeto'
+  multiselect: true
+  choices:
+    Codex: codex
+  default: [codex]
+  validator: "{% if not agents %}Escolha pelo menos um agente{% endif %}"
+
+use_postgres:
+  type: bool
+  help: 'Banco relacional PostgreSQL (SQLAlchemy async + Alembic)?'
+  default: false
+
+use_redis:
+  type: bool
+  help: 'Cache Redis (cache-aside)?'
+  default: false
+
+event_broker:
+  type: str
+  help: 'Broker de eventos (FastStream)'
+  choices:
+    Nenhum: none
+    Kafka: kafka
+    RabbitMQ: rabbit
+  default: none
+
+coverage_threshold:
+  type: int
+  help: 'Cobertura mínima de testes (%)'
+  default: 90
+
+mcp_servers:
+  type: json
+  default: {}
+  help: 'Servidores MCP do projeto (objeto JSON mapeando nome para URL HTTPS, sem credenciais)'
+  validator: "{% if mcp_servers is not mapping %}Use um objeto JSON{% endif %}"

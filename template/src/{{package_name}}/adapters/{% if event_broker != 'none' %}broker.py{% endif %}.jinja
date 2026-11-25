@@ -1,0 +1,31 @@
+{%- set Broker = 'KafkaBroker' if event_broker == 'kafka' else 'RabbitBroker' -%}
+"""Message broker adapter (FastStream) for the EventPublisher port."""
+
+from collections.abc import Mapping
+from typing import Any
+
+from faststream.{{ event_broker }} import {{ Broker }}
+
+Broker = {{ Broker }}
+
+
+def create_broker(url: str) -> Broker:
+    """Create a broker; connect it before publishing."""
+    return Broker(url)
+
+
+async def ping(broker: Broker) -> None:
+    """Fail when the broker is unreachable."""
+    if not await broker.ping(timeout=2.0):
+        raise ConnectionError("Broker is unreachable")
+
+
+class BrokerEventPublisher:
+    """EventPublisher that sends JSON messages to a {{ event_broker }} {{ 'topic' if event_broker == 'kafka' else 'queue' }}."""
+
+    def __init__(self, broker: Broker) -> None:
+        self._broker = broker
+
+    async def publish(self, topic: str, payload: Mapping[str, Any]) -> None:
+        """Publish the payload."""
+        await self._broker.publish(dict(payload), topic)

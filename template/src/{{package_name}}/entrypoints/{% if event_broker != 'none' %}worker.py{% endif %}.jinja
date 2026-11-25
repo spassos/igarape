@@ -1,0 +1,45 @@
+"""Event consumer (FastStream). Run with ``make worker``."""
+
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
+from faststream import FastStream
+from pydantic import BaseModel, Field
+
+from {{ package_name }}.adapters.broker import Broker, create_broker
+from {{ package_name }}.application.items import ItemService
+from {{ package_name }}.config import Settings
+from {{ package_name }}.container import build_container
+from {{ package_name }}.domain.items import NAME_MAX_LENGTH
+from {{ package_name }}.observability import configure_logging
+
+IMPORT_TOPIC = "items.import"
+
+
+class ImportItem(BaseModel):
+    """Inbound command contract (validated before reaching the use case)."""
+
+    name: str = Field(min_length=1, max_length=NAME_MAX_LENGTH)
+
+
+def register_handlers(broker: Broker, items: ItemService) -> None:
+    """Subscribe use cases to inbound topics."""
+
+    @broker.subscriber(IMPORT_TOPIC)
+    async def import_item(command: ImportItem) -> None:
+        await items.create(command.name)
+
+
+def create_worker(settings: Settings | None = None, broker: Broker | None = None) -> FastStream:
+    """Build the worker app sharing one broker for consuming and publishing."""
+    settings = settings or Settings()
+    configure_logging(settings)
+    broker = broker or create_broker(settings.broker_url.get_secret_value())
+
+    @asynccontextmanager
+    async def lifespan() -> AsyncIterator[None]:
+        async with build_container(settings, broker) as container:
+            register_handlers(broker, container.items)
+            yield
+
+    return FastStream(broker, lifespan=lifespan)

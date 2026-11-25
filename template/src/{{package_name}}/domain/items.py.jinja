@@ -1,0 +1,50 @@
+"""Item aggregate: the reference domain model. Replace it with your own."""
+
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import ClassVar
+from uuid import UUID, uuid4
+
+from {{ package_name }}.domain.errors import InvalidItemError
+
+NAME_MAX_LENGTH = 120
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Item:
+    """Something the product cares about."""
+
+    name: str
+    id: UUID = field(default_factory=uuid4)
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+
+    def __post_init__(self) -> None:
+        """Enforce invariants on creation."""
+        if not self.name.strip():
+            raise InvalidItemError("Item name must not be blank")
+        if len(self.name) > NAME_MAX_LENGTH:
+            raise InvalidItemError(f"Item name exceeds {NAME_MAX_LENGTH} characters")
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ItemCreated:
+    """Domain event emitted after an item is persisted."""
+
+    topic: ClassVar[str] = "items.created"
+
+    item_id: UUID
+    name: str
+    occurred_at: datetime
+
+    @classmethod
+    def from_item(cls, item: Item) -> "ItemCreated":
+        """Build the event from the aggregate."""
+        return cls(item_id=item.id, name=item.name, occurred_at=item.created_at)
+
+    def payload(self) -> dict[str, str]:
+        """Serialize to a JSON-friendly contract (see docs/specs)."""
+        return {
+            "item_id": str(self.item_id),
+            "name": self.name,
+            "occurred_at": self.occurred_at.isoformat(),
+        }

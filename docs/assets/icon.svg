@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Igarapé">
+  <defs>
+    <clipPath id="tile"><rect width="512" height="512" rx="112"/></clipPath>
+  </defs>
+  <g clip-path="url(#tile)">
+    <rect width="512" height="512" fill="#0B3D2E"/>
+    <path d="M392 40 C430 52 452 92 444 132 C404 122 380 84 392 40 Z" fill="#1F6F50"/>
+    <path d="M432 70 C424 90 428 110 444 132" fill="none" stroke="#0B3D2E" stroke-width="4" stroke-linecap="round"/>
+    <path d="M40 276 C80 276 112 308 114 348 C74 348 42 316 40 276 Z" fill="#1F6F50"/>
+    <path d="M56 296 C74 308 92 324 114 348" fill="none" stroke="#0B3D2E" stroke-width="4" stroke-linecap="round"/>
+    <path d="M160 -24 C160 110 352 132 338 260 C324 388 156 384 172 536" fill="none" stroke="#1E8C7E" stroke-width="124"/>
+    <path d="M160 -24 C160 110 352 132 338 260 C324 388 156 384 172 536" fill="none" stroke="#2EC4B6" stroke-width="86"/>
+    <path d="M136 -24 C136 104 312 128 302 244" fill="none" stroke="#B8F0E8" stroke-width="9" stroke-linecap="round" opacity="0.55"/>
+    <path d="M300 300 C284 368 176 388 164 470" fill="none" stroke="#B8F0E8" stroke-width="9" stroke-linecap="round" opacity="0.35"/>
+    <path d="M338 200 C364 228 364 292 338 320 C312 292 312 228 338 200 Z" fill="#F4A259"/>
+    <path d="M338 218 L338 302" stroke="#B8682B" stroke-width="5" stroke-linecap="round"/>
+  </g>
+</svg>

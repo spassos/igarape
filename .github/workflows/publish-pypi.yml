@@ -1,0 +1,47 @@
+name: Publish CLI to PyPI
+
+on: workflow_dispatch
+
+permissions: {}
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+      - name: Build and check distributions
+        run: |
+          uv lock --check
+          uv build --no-sources
+          uvx twine check --strict dist/*
+      - name: Generate and test a service with the release wheel
+        working-directory: ${{ runner.temp }}
+        run: |
+          uvx --isolated --from "$GITHUB_WORKSPACE"/dist/*.whl igarape new orders-api --template "$GITHUB_WORKSPACE"
+          make -C orders-api test-unit
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: distributions
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/igarape/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
+        with:
+          name: distributions
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0

@@ -1,0 +1,30 @@
+"""Redis adapter for the Cache port."""
+
+from typing import cast
+
+from redis.asyncio import Redis
+
+
+def create_redis(url: str) -> Redis:
+    """Create a client that returns str instead of bytes."""
+    return Redis.from_url(url, decode_responses=True)
+
+
+async def ping(client: Redis) -> None:
+    """Fail when Redis is unreachable."""
+    await client.ping()
+
+
+class RedisCache:
+    """Cache backed by Redis."""
+
+    def __init__(self, client: Redis) -> None:
+        self._client = client
+
+    async def get(self, key: str) -> str | None:
+        """Return the cached value or None."""
+        return cast("str | None", await self._client.get(key))  # decode_responses=True
+
+    async def set(self, key: str, value: str, ttl_seconds: int) -> None:
+        """Store the value with expiration."""
+        await self._client.set(key, value, ex=ttl_seconds)

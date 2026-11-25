@@ -1,0 +1,35 @@
+# 0002 — Stack e arquitetura base
+
+**Status:** Accepted
+
+## Contexto
+Serviços Python robustos, fáceis de testar e de evoluir por humanos e agentes, sem infraestrutura
+caseira.
+
+## Decisão
+- **Arquitetura hexagonal** (ports & adapters) com regras verificadas pelo import-linter.
+- **uv** (dependências, lockfile, Python), **Ruff** (lint/format), **mypy strict**, **pytest**.
+- **FastAPI** + **pydantic-settings** nas bordas; dataclasses no domínio.
+{%- if use_postgres %}
+- **PostgreSQL** via **SQLAlchemy Core async** + **asyncpg**; migrações com **Alembic**.
+{%- endif %}
+{%- if use_redis %}
+- **Redis** (redis-py asyncio) para cache-aside.
+{%- endif %}
+{%- if event_broker != 'none' %}
+- **FastStream** ({{ 'Kafka' if event_broker == 'kafka' else 'RabbitMQ' }}) para publicar e consumir eventos, com test broker em memória.
+{%- endif %}
+- **httpx** + **stamina** para APIs externas (timeouts explícitos, retry de falhas transitórias).
+  O Starlette já sugere `httpx2` para o TestClient; migrar quando o ecossistema (respx etc.) acompanhar.
+- **structlog** + **asgi-correlation-id** para logs estruturados correlacionados.
+- **testcontainers** para testes de integração com infraestrutura real.
+- **GitHub Actions** (CI/CD), **GHCR**, **release-please**, **Dependabot**.
+
+## Alternativas consideradas
+- ORM completo (SQLAlchemy ORM/SQLModel): mais mágica e acoplamento; Core é explícito e suficiente.
+- Celery/Dramatiq para eventos: orientados a tarefas, não a streams; FastStream cobre ambos os brokers.
+- Poetry/pip-tools: uv é mais rápido e unifica Python + deps + lock.
+
+## Consequências
+Publicação de eventos após o commit não é atômica; quando a consistência exigir, adotar
+*transactional outbox* (novo ADR). OpenTelemetry (traces/métricas) é a próxima evolução esperada.

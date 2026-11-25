@@ -1,0 +1,32 @@
+from uuid import uuid4
+
+import pytest
+
+from {{ package_name }}.application.items import ItemService
+from {{ package_name }}.domain.errors import ItemNotFoundError
+from {{ package_name }}.domain.items import ItemCreated
+from tests.conftest import Fakes
+
+pytestmark = pytest.mark.anyio
+
+
+async def test_create_persists_and_publishes_event(service: ItemService, fakes: Fakes) -> None:
+    item = await service.create("book")
+
+    assert fakes.repository.items[item.id] == item
+    assert fakes.publisher.published == [(ItemCreated.topic, ItemCreated.from_item(item).payload())]
+
+
+async def test_get_reads_through_cache(service: ItemService, fakes: Fakes) -> None:
+    item = await service.create("book")
+    first = await service.get(item.id)
+    fakes.repository.items.clear()
+
+    second = await service.get(item.id)
+
+    assert first == second == item
+
+
+async def test_get_unknown_item_raises(service: ItemService) -> None:
+    with pytest.raises(ItemNotFoundError):
+        await service.get(uuid4())

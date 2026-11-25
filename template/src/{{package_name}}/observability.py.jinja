@@ -1,0 +1,38 @@
+"""Structured logging (structlog) with request correlation ids."""
+
+import logging
+
+import structlog
+from asgi_correlation_id import correlation_id
+from structlog.typing import EventDict, WrappedLogger
+
+from {{ package_name }}.config import Settings
+
+
+def _add_correlation_id(_: WrappedLogger, __: str, event: EventDict) -> EventDict:
+    if request_id := correlation_id.get():
+        event["request_id"] = request_id
+    return event
+
+
+def configure_logging(settings: Settings) -> None:
+    """Configure structlog once per process."""
+    renderer = (
+        structlog.processors.JSONRenderer()
+        if settings.json_logs
+        else structlog.dev.ConsoleRenderer()
+    )
+    structlog.configure(
+        processors=[
+            structlog.contextvars.merge_contextvars,
+            _add_correlation_id,
+            structlog.processors.add_log_level,
+            structlog.processors.TimeStamper(fmt="iso", utc=True),
+            structlog.processors.dict_tracebacks,
+            renderer,
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(
+            logging.getLevelNamesMapping()[settings.log_level]
+        ),
+        cache_logger_on_first_use=True,
+    )

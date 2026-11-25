@@ -1,0 +1,24 @@
+from collections.abc import AsyncIterator
+
+import pytest
+
+from {{ package_name }}.adapters.redis_cache import RedisCache, create_redis
+
+pytestmark = [pytest.mark.integration, pytest.mark.anyio]
+
+
+@pytest.fixture
+async def cache(redis_url: str) -> AsyncIterator[RedisCache]:
+    client = create_redis(redis_url)
+    yield RedisCache(client)
+    await client.aclose()
+
+
+async def test_set_then_get(cache: RedisCache) -> None:
+    await cache.set("k", "v", ttl_seconds=60)
+
+    assert await cache.get("k") == "v"
+
+
+async def test_missing_key_returns_none(cache: RedisCache) -> None:
+    assert await cache.get("missing") is None

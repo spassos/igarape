@@ -1,0 +1,29 @@
+import pytest
+
+from {{ package_name }}.domain.errors import InvalidItemError
+from {{ package_name }}.domain.items import NAME_MAX_LENGTH, Item, ItemCreated
+
+
+def test_item_gets_identity_and_timestamp() -> None:
+    item = Item(name="book")
+
+    assert item.id
+    assert item.created_at.tzinfo is not None
+
+
+@pytest.mark.parametrize("name", ["", "   ", "x" * (NAME_MAX_LENGTH + 1)])
+def test_item_rejects_invalid_names(name: str) -> None:
+    with pytest.raises(InvalidItemError):
+        Item(name=name)
+
+
+def test_item_created_payload_is_json_friendly() -> None:
+    item = Item(name="book")
+
+    payload = ItemCreated.from_item(item).payload()
+
+    assert payload == {
+        "item_id": str(item.id),
+        "name": "book",
+        "occurred_at": item.created_at.isoformat(),
+    }
