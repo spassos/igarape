@@ -11,22 +11,35 @@ pytestmark = pytest.mark.anyio
 
 
 async def test_create_persists_and_publishes_event(service: ItemService, fakes: Fakes) -> None:
-    item = await service.create("book")
+    item = await service.create("book", owner_id="alice")
 
+    assert item.owner_id == "alice"
     assert fakes.repository.items[item.id] == item
     assert fakes.publisher.published == [(ItemCreated.topic, ItemCreated.from_item(item).payload())]
 
 
 async def test_get_reads_through_cache(service: ItemService, fakes: Fakes) -> None:
-    item = await service.create("book")
-    first = await service.get(item.id)
+    item = await service.create("book", owner_id="alice")
+    first = await service.get(item.id, owner_id="alice")
     fakes.repository.items.clear()
 
-    second = await service.get(item.id)
+    second = await service.get(item.id, owner_id="alice")
 
     assert first == second == item
 
 
 async def test_get_unknown_item_raises(service: ItemService) -> None:
     with pytest.raises(ItemNotFoundError):
-        await service.get(uuid4())
+        await service.get(uuid4(), owner_id="alice")
+
+
+@pytest.mark.parametrize("cache_warm", [False, True])
+async def test_get_hides_items_owned_by_someone_else(
+    service: ItemService, cache_warm: bool
+) -> None:
+    item = await service.create("book", owner_id="alice")
+    if cache_warm:
+        await service.get(item.id, owner_id="alice")
+
+    with pytest.raises(ItemNotFoundError):
+        await service.get(item.id, owner_id="bob")

@@ -1,11 +1,11 @@
 import pytest
 
 from {{ package_name }}.domain.errors import InvalidItemError
-from {{ package_name }}.domain.items import NAME_MAX_LENGTH, Item, ItemCreated
+from {{ package_name }}.domain.items import NAME_MAX_LENGTH, OWNER_ID_MAX_LENGTH, Item, ItemCreated
 
 
 def test_item_gets_identity_and_timestamp() -> None:
-    item = Item(name="book")
+    item = Item(name="book", owner_id="alice")
 
     assert item.id
     assert item.created_at.tzinfo is not None
@@ -14,16 +14,23 @@ def test_item_gets_identity_and_timestamp() -> None:
 @pytest.mark.parametrize("name", ["", "   ", "x" * (NAME_MAX_LENGTH + 1)])
 def test_item_rejects_invalid_names(name: str) -> None:
     with pytest.raises(InvalidItemError):
-        Item(name=name)
+        Item(name=name, owner_id="alice")
+
+
+@pytest.mark.parametrize("owner_id", ["", "x" * (OWNER_ID_MAX_LENGTH + 1)])
+def test_item_requires_an_owner(owner_id: str) -> None:
+    with pytest.raises(InvalidItemError, match="owner"):
+        Item(name="book", owner_id=owner_id)
 
 
 def test_item_created_payload_is_json_friendly() -> None:
-    item = Item(name="book")
+    item = Item(name="book", owner_id="alice")
 
     payload = ItemCreated.from_item(item).payload()
 
     assert payload == {
         "item_id": str(item.id),
         "name": "book",
+        "owner_id": "alice",
         "occurred_at": item.created_at.isoformat(),
     }

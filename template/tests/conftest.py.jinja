@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
+from typing import Protocol
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,8 +13,9 @@ from {{ package_name }}.adapters.memory import (
 )
 from {{ package_name }}.application.items import ItemService
 from {{ package_name }}.config import Settings
-from {{ package_name }}.container import Container
+from {{ package_name }}.container import Container, build_token_verifier
 from {{ package_name }}.entrypoints.http.app import create_app
+from tests.tokens import AUTH_SECRET, DEFAULT_SCOPES, claims, sign_hs256
 
 
 @pytest.fixture
@@ -38,12 +40,39 @@ def service(fakes: Fakes) -> ItemService:
     return ItemService(fakes.repository, fakes.cache, fakes.publisher, cache_ttl_seconds=60)
 
 
+def api_settings(**overrides: object) -> Settings:
+    """Test settings whose verifier accepts tokens from ``make_auth_headers``."""
+    return Settings.model_validate(
+        {"env": "test", "version": "test-sha", "auth_dev_secret": AUTH_SECRET} | overrides
+    )
+
+
 @pytest.fixture
 def client(service: ItemService) -> Iterator[TestClient]:
+    settings = api_settings()
+
     @asynccontextmanager
     async def in_memory(_: Settings) -> AsyncIterator[Container]:
-        yield Container(items=service, health_checks={})
+        yield Container(
+            items=service, health_checks={}, token_verifier=build_token_verifier(settings)
+        )
 
-    app = create_app(Settings(env="test", version="test-sha"), container_factory=in_memory)
+    app = create_app(settings, container_factory=in_memory)
     with TestClient(app) as test_client:
         yield test_client
+
+
+class MakeAuthHeaders(Protocol):
+    def __call__(
+        self, subject: str = "alice", scopes: tuple[str, ...] = DEFAULT_SCOPES
+    ) -> dict[str, str]: ...
+
+
+@pytest.fixture
+def make_auth_headers() -> MakeAuthHeaders:
+    """Bearer headers signed for the real JWT verifier used by ``client``."""
+
+    def make(subject: str = "alice", scopes: tuple[str, ...] = DEFAULT_SCOPES) -> dict[str, str]:
+        return {"Authorization": f"Bearer {sign_hs256(claims(subject, scopes))}"}
+
+    return make

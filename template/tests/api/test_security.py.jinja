@@ -1,0 +1,368 @@
+"""OWASP API Top 10 regression tests: authentication, authorization, errors, exposure."""
+
+import re
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
+from datetime import UTC, datetime, timedelta
+from uuid import uuid4
+
+import httpx
+import pytest
+import respx
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
+
+from {{ package_name }}.application.items import ItemService
+from {{ package_name }}.config import Settings
+from {{ package_name }}.container import Container, build_token_verifier
+from {{ package_name }}.domain.security import Principal
+from {{ package_name }}.entrypoints.http.app import create_app
+from tests.conftest import MakeAuthHeaders, api_settings
+from tests.tokens import (
+    AUDIENCE,
+    ISSUER,
+    JWKS_URL,
+    claims,
+    jwks,
+    sign_hs256,
+    sign_rs256,
+    unsigned,
+)
+
+PROBLEM = "application/problem+json"
+JWKS_SETTINGS = {
+    "auth_dev_secret": None,
+    "auth_jwks_url": JWKS_URL,
+    "auth_issuer": ISSUER,
+    "auth_audience": AUDIENCE,
+}
+
+
+def build_client(service: ItemService, settings: Settings) -> TestClient:
+    @asynccontextmanager
+    async def in_memory(_: Settings) -> AsyncIterator[Container]:
+        yield Container(
+            items=service, health_checks={}, token_verifier=build_token_verifier(settings)
+        )
+
+    return TestClient(create_app(settings, container_factory=in_memory))
+
+
+def bearer(token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {token}"}
+
+
+def assert_problem(response: httpx.Response, status: int) -> None:
+    assert response.status_code == status
+    assert response.headers["Content-Type"] == PROBLEM
+    body = response.json()
+    assert body["status"] == status
+    assert {"type", "title", "status", "detail", "instance"} <= body.keys()
+
+
+# ---------------------------------------------------------------- API2 authentication
+
+
+def test_missing_token_is_rejected_with_bearer_challenge(client: TestClient) -> None:
+    response = client.post("/v1/items", json={"name": "book"})
+
+    assert_problem(response, 401)
+    assert response.headers["WWW-Authenticate"].startswith("Bearer")
+    assert response.json()["instance"] == "/v1/items"
+
+
+@pytest.mark.parametrize(
+    "authorization",
+    [
+        "Bearer not-a-jwt",
+        "Bearer a.b.c",
+        "Basic YWxpY2U6c2VjcmV0",
+        f"Bearer {sign_hs256(claims(), secret='0' * 64)}",
+        f"Bearer {unsigned(claims())}",
+        f"Bearer {sign_hs256(claims(exp=datetime.now(UTC) - timedelta(minutes=2)))}",
+        f"Bearer {sign_hs256(claims(nbf=datetime.now(UTC) + timedelta(minutes=2)))}",
+        f"Bearer {sign_hs256(claims(issuer='https://evil.example.com/'))}",
+        f"Bearer {sign_hs256(claims(audience='another-api'))}",
+        f"Bearer {sign_hs256(claims(sub=None))}",
+        f"Bearer {sign_hs256(claims(sub=''))}",
+        f"Bearer {sign_hs256(claims(exp=None))}",
+        f"Bearer {sign_hs256(claims(iss=None))}",
+        f"Bearer {sign_hs256(claims(aud=None))}",
+    ],
+    ids=[
+        "malformed",
+        "garbage-segments",
+        "not-bearer",
+        "wrong-secret",
+        "alg-none",
+        "expired",
+        "not-yet-valid",
+        "wrong-issuer",
+        "wrong-audience",
+        "no-subject",
+        "empty-subject",
+        "no-exp",
+        "no-iss",
+        "no-aud",
+    ],
+)
+def test_invalid_tokens_are_rejected(client: TestClient, authorization: str) -> None:
+    response = client.get(f"/v1/items/{uuid4()}", headers={"Authorization": authorization})
+
+    assert_problem(response, 401)
+    assert response.headers["WWW-Authenticate"].startswith("Bearer")
+
+
+def test_clock_skew_within_leeway_is_tolerated(client: TestClient) -> None:
+    token = sign_hs256(claims(exp=datetime.now(UTC) - timedelta(seconds=10)))
+
+    response = client.post("/v1/items", json={"name": "book"}, headers=bearer(token))
+
+    assert response.status_code == 201
+
+
+def test_every_v1_route_requires_a_token(client: TestClient) -> None:
+    paths = client.get("/openapi.json").json()["paths"]
+    operations = [
+        (method, path) for path, item in paths.items() if path.startswith("/v1/") for method in item
+    ]
+    assert operations
+    for method, path in operations:
+        url = re.sub(r"\{[^}]+\}", str(uuid4()), path)
+
+        response = client.request(method, url, json={"name": "book"})
+
+        assert response.status_code == 401, f"{method.upper()} {path}"
+        assert paths[path][method]["security"] == [{"HTTPBearer": []}]
+
+
+@pytest.fixture
+def jwks_client(service: ItemService) -> Iterator[TestClient]:
+    with respx.mock(assert_all_called=False) as mock:
+        mock.get(JWKS_URL).mock(return_value=httpx.Response(200, json=jwks("key-1")))
+        with build_client(service, api_settings(**JWKS_SETTINGS)) as client:
+            yield client
+
+
+def test_jwks_signed_token_is_accepted(jwks_client: TestClient) -> None:
+    token = sign_rs256(claims(issuer=ISSUER, audience=AUDIENCE))
+
+    response = jwks_client.post("/v1/items", json={"name": "book"}, headers=bearer(token))
+
+    assert response.status_code == 201
+
+
+@pytest.mark.parametrize(
+    "token",
+    [
+        sign_hs256(claims(issuer=ISSUER, audience=AUDIENCE)),
+        unsigned(claims(issuer=ISSUER, audience=AUDIENCE)),
+        sign_rs256(claims(issuer=ISSUER, audience=AUDIENCE), kid="unpublished"),
+    ],
+    ids=["hs256-with-jwks", "alg-none-with-jwks", "unknown-kid"],
+)
+def test_jwks_mode_rejects_algorithm_confusion(jwks_client: TestClient, token: str) -> None:
+    response = jwks_client.get(f"/v1/items/{uuid4()}", headers=bearer(token))
+
+    assert_problem(response, 401)
+
+
+# ---------------------------------------------------------------- API5 function level
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "scopes"),
+    [("POST", "/v1/items", ("items:read",)), ("GET", f"/v1/items/{uuid4()}", ("items:write",))],
+)
+def test_missing_scope_is_forbidden(
+    client: TestClient,
+    make_auth_headers: MakeAuthHeaders,
+    method: str,
+    path: str,
+    scopes: tuple[str, ...],
+) -> None:
+    response = client.request(
+        method, path, json={"name": "book"}, headers=make_auth_headers(scopes=scopes)
+    )
+
+    assert_problem(response, 403)
+    assert "insufficient_scope" in response.headers["WWW-Authenticate"]
+
+
+# ---------------------------------------------------------------- API1 object level
+
+
+def test_items_of_another_owner_look_missing(
+    client: TestClient, make_auth_headers: MakeAuthHeaders
+) -> None:
+    created = client.post("/v1/items", json={"name": "book"}, headers=make_auth_headers("alice"))
+    item_id = created.json()["id"]
+    client.get(f"/v1/items/{item_id}", headers=make_auth_headers("alice"))  # warm the cache
+
+    foreign = client.get(f"/v1/items/{item_id}", headers=make_auth_headers("bob"))
+    missing = client.get(f"/v1/items/{uuid4()}", headers=make_auth_headers("bob"))
+
+    assert_problem(foreign, 404)
+    assert foreign.json()["title"] == missing.json()["title"]
+    assert "owner" not in foreign.text
+    assert "alice" not in foreign.text
+
+
+# ---------------------------------------------------------------- API8 error handling
+
+
+def test_unknown_route_is_a_problem(client: TestClient) -> None:
+    assert_problem(client.get("/nope"), 404)
+
+
+def test_validation_problem_lists_errors_without_echoing_input(
+    client: TestClient, make_auth_headers: MakeAuthHeaders
+) -> None:
+    response = client.post(
+        "/v1/items", json={"name": "x" * 500, "token": "s3cr3t"}, headers=make_auth_headers()
+    )
+
+    assert_problem(response, 422)
+    assert {tuple(error["loc"]) for error in response.json()["errors"]} == {
+        ("body", "name"),
+        ("body", "token"),
+    }
+    assert "s3cr3t" not in response.text
+
+
+class ExplodingVerifier:
+    async def verify(self, token: str) -> Principal:
+        raise RuntimeError("connection to db.internal:5432 failed")
+
+
+def test_unexpected_errors_hide_internals(service: ItemService) -> None:
+    @asynccontextmanager
+    async def broken(_: Settings) -> AsyncIterator[Container]:
+        yield Container(items=service, health_checks={}, token_verifier=ExplodingVerifier())
+
+    app = create_app(api_settings(), container_factory=broken)
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get(f"/v1/items/{uuid4()}", headers=bearer("x.y.z"))
+
+    assert_problem(response, 500)
+    assert "5432" not in response.text
+    assert "db.internal" not in response.text
+
+
+def test_openapi_declares_problem_responses(client: TestClient) -> None:
+    operations = client.get("/openapi.json").json()["paths"]["/v1/items"]["post"]["responses"]
+
+    assert {"401", "403", "413", "422", "500"} <= operations.keys()
+    assert PROBLEM in operations["401"]["content"]
+    assert "application/json" not in operations["422"]["content"]
+
+
+# ---------------------------------------------------------------- API4 resource limits
+
+
+def test_declared_oversized_body_is_rejected(service: ItemService) -> None:
+    with build_client(service, api_settings(max_body_bytes=64)) as client:
+        response = client.post(
+            "/v1/items",
+            content=b'{"name": "' + b"x" * 100 + b'"}',
+            headers={"Content-Type": "application/json"},
+        )
+
+    assert_problem(response, 413)
+
+
+def test_streamed_oversized_body_is_rejected(
+    service: ItemService, make_auth_headers: MakeAuthHeaders
+) -> None:
+    def chunks() -> Iterator[bytes]:
+        yield b'{"name": "'
+        yield b"x" * 100
+        yield b'"}'
+
+    headers = make_auth_headers() | {"Content-Type": "application/json"}
+    with build_client(service, api_settings(max_body_bytes=64)) as client:
+        response = client.post("/v1/items", content=chunks(), headers=headers)
+
+    assert "Content-Length" not in response.request.headers
+    assert_problem(response, 413)
+
+
+# ---------------------------------------------------------------- API8 misconfiguration
+
+
+def test_security_headers_are_set(client: TestClient, make_auth_headers: MakeAuthHeaders) -> None:
+    api = client.get(f"/v1/items/{uuid4()}", headers=make_auth_headers())
+    health = client.get("/health/live")
+
+    for response in (api, health):
+        assert response.headers["X-Content-Type-Options"] == "nosniff"
+        assert response.headers["X-Frame-Options"] == "DENY"
+        assert response.headers["Referrer-Policy"] == "no-referrer"
+        assert response.headers["Content-Security-Policy"] == (
+            "default-src 'none'; frame-ancestors 'none'"
+        )
+        assert "Strict-Transport-Security" not in response.headers
+    assert api.headers["Cache-Control"] == "no-store"
+    assert "Cache-Control" not in health.headers
+
+
+def test_docs_are_served_outside_deployed_environments(client: TestClient) -> None:
+    response = client.get("/docs")
+
+    assert response.status_code == 200
+    assert "Content-Security-Policy" not in response.headers
+
+
+def test_no_cors_policy_by_default(client: TestClient) -> None:
+    response = client.get("/health/live", headers={"Origin": "https://evil.example.com"})
+
+    assert "Access-Control-Allow-Origin" not in response.headers
+
+
+def test_production_hides_docs_and_sends_hsts(service: ItemService) -> None:
+    settings = Settings.model_validate({"env": "production", **JWKS_SETTINGS})
+    with build_client(service, settings) as client:
+        live = client.get("/health/live")
+        hidden = [client.get(path).status_code for path in ("/docs", "/redoc", "/openapi.json")]
+
+    assert hidden == [404, 404, 404]
+    assert live.headers["Strict-Transport-Security"].startswith("max-age=")
+
+
+VALID_DEPLOYED = {"env": "production", **JWKS_SETTINGS}
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"auth_jwks_url": None},
+        {"auth_issuer": None},
+        {"auth_audience": None},
+        {"auth_jwks_url": ""},
+        {"auth_dev_secret": "a" * 64},
+        {"auth_jwks_url": "http://idp.example.com/jwks.json"},
+        {"auth_algorithms": ["HS256"]},
+        {"auth_algorithms": ["none"]},
+        {"auth_algorithms": []},
+        {"env": "staging", "auth_jwks_url": None},
+        {"env": "local", "auth_dev_secret": "a" * 64},
+        {"env": "local", "auth_issuer": None},
+        {"env": "local", "auth_jwks_url": None, "auth_dev_secret": "too-short"},
+    ],
+)
+def test_unsafe_settings_fail_fast(overrides: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        Settings.model_validate(VALID_DEPLOYED | overrides)
+
+
+def test_dev_secret_gets_local_issuer_and_audience() -> None:
+    settings = Settings.model_validate({"env": "local", "auth_dev_secret": "a" * 64})
+
+    assert settings.auth_issuer
+    assert settings.auth_audience
+
+
+def test_blank_auth_settings_count_as_unset() -> None:
+    settings = Settings.model_validate({"env": "local", "auth_dev_secret": ""})
+
+    assert settings.auth_dev_secret is None

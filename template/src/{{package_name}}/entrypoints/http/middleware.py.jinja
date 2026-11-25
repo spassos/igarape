@@ -1,0 +1,119 @@
+"""Small ASGI middlewares: security headers and request body size limit."""
+
+from collections.abc import Collection
+from contextlib import suppress
+
+from starlette.datastructures import Headers, MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+from {{ package_name }}.entrypoints.http.problems import problem
+
+STRICT_CSP = "default-src 'none'; frame-ancestors 'none'"
+HSTS = "max-age=31536000; includeSubDomains"
+
+
+class SecurityHeadersMiddleware:
+    """Add defensive headers to every HTTP response.
+
+    ``csp_exempt_paths`` lists the interactive docs pages, which load scripts and styles
+    (they only exist outside staging/production). ``no_store_prefix`` marks API responses
+    as uncacheable; ``hsts`` should be on only where TLS is guaranteed (production).
+    """
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        *,
+        hsts: bool,
+        csp_exempt_paths: Collection[str] = (),
+        no_store_prefix: str = "/v1",
+    ) -> None:
+        self.app = app
+        self.hsts = hsts
+        self.csp_exempt_paths = frozenset(csp_exempt_paths)
+        self.no_store_prefix = no_store_prefix
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Wrap ``send`` to decorate the response start message."""
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        path: str = scope["path"]
+
+        async def send_with_headers(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                headers["X-Content-Type-Options"] = "nosniff"
+                headers["X-Frame-Options"] = "DENY"
+                headers["Referrer-Policy"] = "no-referrer"
+                if path not in self.csp_exempt_paths:
+                    headers["Content-Security-Policy"] = STRICT_CSP
+                if path == self.no_store_prefix or path.startswith(f"{self.no_store_prefix}/"):
+                    headers["Cache-Control"] = "no-store"
+                if self.hsts:
+                    headers["Strict-Transport-Security"] = HSTS
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
+
+
+class _BodyTooLargeError(Exception):
+    """Raised from ``receive`` once the streamed body passes the limit."""
+
+
+class _BodyGuard:
+    """Counts body bytes as they are received and mutes the app once the limit is hit."""
+
+    def __init__(self, receive: Receive, send: Send, limit: int) -> None:
+        self._receive = receive
+        self._send = send
+        self._limit = limit
+        self._received = 0
+        self.exceeded = False
+        self.response_started = False
+
+    async def receive(self) -> Message:
+        message = await self._receive()
+        if message["type"] == "http.request":
+            self._received += len(message.get("body", b""))
+            if self._received > self._limit:
+                self.exceeded = True
+                raise _BodyTooLargeError
+        return message
+
+    async def send(self, message: Message) -> None:
+        if self.exceeded:  # drop whatever the app answered; the middleware sends 413
+            return
+        self.response_started = self.response_started or message["type"] == "http.response.start"
+        await self._send(message)
+
+
+class BodySizeLimitMiddleware:
+    """Reject request bodies larger than ``max_body_bytes`` with 413 problem details.
+
+    Checks the declared ``Content-Length`` up front and counts streamed (chunked) bodies
+    as the application reads them.
+    """
+
+    def __init__(self, app: ASGIApp, *, max_body_bytes: int) -> None:
+        self.app = app
+        self.max_body_bytes = max_body_bytes
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Enforce the limit on HTTP requests."""
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        declared = Headers(scope=scope).get("content-length", "")
+        if declared.isdigit() and int(declared) > self.max_body_bytes:
+            await self._reject(scope, receive, send)
+            return
+        guard = _BodyGuard(receive, send, self.max_body_bytes)
+        with suppress(_BodyTooLargeError):
+            await self.app(scope, guard.receive, guard.send)
+        if guard.exceeded and not guard.response_started:
+            await self._reject(scope, receive, send)
+
+    async def _reject(self, scope: Scope, receive: Receive, send: Send) -> None:
+        response = problem(413, f"Request body exceeds {self.max_body_bytes} bytes", scope["path"])
+        await response(scope, receive, send)

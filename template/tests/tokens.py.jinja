@@ -1,0 +1,76 @@
+"""Token helpers for tests: an HS256 dev secret and a locally generated RSA signing key."""
+
+import base64
+import json
+import secrets
+from datetime import UTC, datetime, timedelta
+from functools import cache
+from typing import Any
+
+import jwt
+from cryptography.hazmat.primitives.asymmetric import rsa
+
+from {{ package_name }}.config import DEV_AUTH_AUDIENCE, DEV_AUTH_ISSUER
+
+# Generated per test run: no literal secret in the repository.
+AUTH_SECRET = secrets.token_hex(32)
+DEFAULT_SCOPES = ("items:read", "items:write")
+JWKS_URL = "https://idp.example.com/.well-known/jwks.json"
+ISSUER = "https://idp.example.com/"
+AUDIENCE = "{{ project_slug }}"
+
+
+def claims(
+    subject: str = "alice",
+    scopes: tuple[str, ...] = DEFAULT_SCOPES,
+    *,
+    issuer: str = DEV_AUTH_ISSUER,
+    audience: str = DEV_AUTH_AUDIENCE,
+    **overrides: Any,
+) -> dict[str, Any]:
+    """Valid claims for five minutes; an override of None removes the claim."""
+    now = datetime.now(UTC)
+    base: dict[str, Any] = {
+        "sub": subject,
+        "scope": " ".join(scopes),
+        "iss": issuer,
+        "aud": audience,
+        "iat": now,
+        "exp": now + timedelta(minutes=5),
+    }
+    return {key: value for key, value in (base | overrides).items() if value is not None}
+
+
+def sign_hs256(payload: dict[str, Any], secret: str = AUTH_SECRET) -> str:
+    """Sign like ``make token`` does."""
+    return jwt.encode(payload, secret, algorithm="HS256")
+
+
+def unsigned(payload: dict[str, Any]) -> str:
+    """Build an ``alg: none`` token by hand."""
+
+    def b64(data: dict[str, Any]) -> str:
+        raw = json.dumps(data, default=lambda value: int(value.timestamp())).encode()
+        return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
+
+    return f"{b64({'alg': 'none', 'typ': 'JWT'})}.{b64(payload)}."
+
+
+@cache
+def rsa_key(kid: str) -> rsa.RSAPrivateKey:
+    """A 2048-bit RSA key generated once per test run for ``kid``."""
+    return rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+
+def sign_rs256(payload: dict[str, Any], kid: str = "key-1") -> str:
+    """Sign with the RSA key published under ``kid``."""
+    return jwt.encode(payload, rsa_key(kid), algorithm="RS256", headers={"kid": kid})
+
+
+def jwks(*kids: str) -> dict[str, Any]:
+    """A JWKS document publishing the public half of each ``kid``."""
+    keys = []
+    for kid in kids:
+        jwk = jwt.algorithms.RSAAlgorithm.to_jwk(rsa_key(kid).public_key(), as_dict=True)
+        keys.append(jwk | {"kid": kid, "alg": "RS256", "use": "sig"})
+    return {"keys": keys}

@@ -10,16 +10,21 @@ from {{ package_name }}.adapters.broker import Broker, create_broker
 from {{ package_name }}.application.items import ItemService
 from {{ package_name }}.config import Settings
 from {{ package_name }}.container import build_container
-from {{ package_name }}.domain.items import NAME_MAX_LENGTH
+from {{ package_name }}.domain.items import NAME_MAX_LENGTH, OWNER_ID_MAX_LENGTH
 from {{ package_name }}.observability import configure_logging
 
 IMPORT_TOPIC = "items.import"
 
 
 class ImportItem(BaseModel):
-    """Inbound command contract (validated before reaching the use case)."""
+    """Inbound command contract (validated before reaching the use case).
+
+    ``owner_id`` is trusted as-is: only internal producers may publish to this topic, so
+    restrict who can write to it with broker ACLs. Never expose it to end users.
+    """
 
     name: str = Field(min_length=1, max_length=NAME_MAX_LENGTH)
+    owner_id: str = Field(min_length=1, max_length=OWNER_ID_MAX_LENGTH)
 
 
 def register_handlers(broker: Broker, items: ItemService) -> None:
@@ -27,7 +32,7 @@ def register_handlers(broker: Broker, items: ItemService) -> None:
 
     @broker.subscriber(IMPORT_TOPIC)
     async def import_item(command: ImportItem) -> None:
-        await items.create(command.name)
+        await items.create(command.name, owner_id=command.owner_id)
 
 
 def create_worker(settings: Settings | None = None, broker: Broker | None = None) -> FastStream:

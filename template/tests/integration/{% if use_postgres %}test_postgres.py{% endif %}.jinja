@@ -17,7 +17,7 @@ async def repository(database_url: str) -> AsyncIterator[PostgresItemRepository]
 
 
 async def test_add_then_get(repository: PostgresItemRepository) -> None:
-    item = Item(name="book")
+    item = Item(name="book", owner_id="alice")
     await repository.add(item)
 
     assert await repository.get(item.id) == item
