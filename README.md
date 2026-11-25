@@ -20,6 +20,7 @@
 # Igarapé
 
 **Igarapé** is a CLI that generates Python service repositories ready for coding agents.
+Scaffold a FastAPI repository with shared agent guidance, automated checks and optional delivery workflows.
 
 > Igarapé is in early development and available on [PyPI](https://pypi.org/project/igarape/).
 > See the [roadmap](#roadmap).
@@ -36,8 +37,8 @@ already in place, whichever agent the team uses.
 | What you get | How it is enforced |
 |---|---|
 | **One SDLC for every agent.** Six phases (Discovery → Specify → Plan → Implement → Review → Ship), each a skill that produces a versioned artifact and ends at a gate: human approval of the PRD, spec, plan and merge; a green `make check` and no blocking review findings in between. `AGENTS.md`, seven skills (`discovery`, `specify`, `plan`, `implement`, `integrate`, `review`, `ship`) and four subagent roles (`architect`, `test_engineer`, `reviewer`, `security_auditor`). | The same `AGENTS.md` and `.agents/skills/` are read by Codex, Claude Code, GitHub Copilot and OpenCode; each agent gets only a thin adapter generated from the same source, and the subagents are read-only except `test_engineer`. |
-| **A real service, not a blank repo.** FastAPI with hexagonal architecture, in memory by default. PostgreSQL (SQLAlchemy async + Alembic), Redis and Kafka or RabbitMQ (FastStream publisher + consumer worker) are opt-in; an outbound HTTP client with timeouts and retries is always included. | import-linter keeps the layers apart (`domain` and `application` import no framework); integrations are generated only when chosen, with no dead code. |
-| **Quality gates the agent cannot talk its way around.** | `make check` runs Ruff (PEP 8/257 and Bandit rules), `mypy --strict`, import-linter, pip-audit on the locked tree and pytest with branch coverage ≥ 90%, identically on a laptop, in an agent session and in CI. Tests cover unit, API and integration (testcontainers) levels, plus a migration round-trip. |
+| **A real service, not a blank repo.** FastAPI with hexagonal architecture, in memory by default. PostgreSQL (SQLAlchemy async + Alembic), Redis and Kafka or RabbitMQ (FastStream publisher + consumer worker) are opt-in. An outbound HTTP client with timeouts and retries is always included. | import-linter keeps the layers apart (`domain` and `application` import no framework); integrations are generated only when chosen, with no dead code. |
+| **Quality gates the agent cannot talk its way around.** | `make check` runs Ruff (PEP 8/257 and Bandit rules), `mypy --strict`, import-linter, pip-audit on the locked tree and pytest with branch coverage ≥ 90%. The same checks run on a laptop, in an agent session and in CI. Tests cover unit, API and integration (testcontainers) levels, plus a migration round-trip. |
 | **Security by default.** OWASP API Security Top 10 controls: versioned `/v1` routes, generic JWT/OIDC authentication (JWKS, scopes, deny by default), object-level authorization (another owner's item returns 404), RFC 9457 problem details, security headers, a request-body size limit, `/docs` disabled in production and an SSRF guard for outbound HTTP. The mapping lives in the generated docs. | Security, contract (Schemathesis) and property (Hypothesis) tests ship with the service. CI runs gitleaks, zizmor and Trivy, with actions pinned by commit SHA and least-privilege permissions. |
 | **Delivery verified in production (optional).** Opt-in CD (`ENABLE_CD=true`) pushes an image to GHCR with build-provenance attestation, deploys to staging, runs an OWASP ZAP baseline scan there, then deploys to production behind an environment approval. Opt-in release-please (`ENABLE_RELEASES=true`) keeps a release PR with the next semantic version and CHANGELOG; merging it tags `vX.Y.Z`, publishes the GitHub release and, with CD, ships that version. | A deploy is done only when the smoke test confirms the deployed version (the release version, else the commit SHA) and readiness; otherwise it rolls back automatically. PR titles must follow Conventional Commits. |
 | **Projects keep improving.** | Generated repositories stay linked to the template; `copier update` brings later improvements. |
@@ -48,22 +49,44 @@ agent-neutral path from idea to production.
 
 ## Quick start
 
-Requirements: [uv](https://docs.astral.sh/uv/), Git and `make`. Docker is needed only for the
-optional integrations.
+Install Git and `make`. Docker is needed only for the optional integrations.
+
+With [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uvx igarape new orders-api
-cd orders-api && make bootstrap && make run   # in-memory API on http://127.0.0.1:8000
-make check                                    # the Definition of Done gate
+cd orders-api
+make bootstrap
+make run
 ```
 
+For pip, activate a virtual environment with Python 3.12 or newer.
+
+```bash
+python -m pip install --upgrade igarape
+```
+
+If your installed version is `0.2.0`, install `uv` separately with
+`python -m pip install uv` in the same environment. Then generate the service:
+
+```bash
+igarape new orders-api
+```
+
+Then enter `orders-api` and run `make bootstrap` and `make run`. The in-memory API listens on
+`http://127.0.0.1:8000`.
+
+Use `--agent` to select an adapter. Codex is the default.
 Then open the directory with your coding agent. It reads `AGENTS.md` first.
 
 ## How it works
 
 `igarape new` validates the options, renders the Copier template, locks the dependencies with
-`uv lock`, initializes a Git repository and commits the scaffold (skipped with a hint when Git
-has no user identity). The agent guidance is written once in a shared core; each selected agent
+`uv lock`, initializes a Git repository and commits the scaffold. If the initial commit fails,
+Igarapé keeps the scaffold and shows the Git error. The generated Claude Code settings allow
+specific Git commands for inspection, staging and commits, with confirmation before pushing.
+With CD and releases enabled, reruns keep the release version when its tag points to the same
+commit. The agent guidance is written once in a shared core; each selected agent
 gets only a thin adapter in the format it reads. Details:
 [`docs/architecture.md`](docs/architecture.md).
 
@@ -128,7 +151,7 @@ are configured in the repository settings.
 |---|---|
 | `ruff check` + `ruff format --check` | The CLI and tests are clean. |
 | `uv run pytest` | All 6 scenarios render with the expected layout; every agent adapter renders the shared roles with the right permissions; the CLI rejects invalid input without touching the destination; the CD, release, deploy and rollback policy behaves as documented; release-please bumps `pyproject.toml` and `uv.lock` together, here and in generated services. |
-| `uv run pytest -m smoke` | The built wheel generates the default service, which starts, becomes ready and creates and reads an item over HTTP. |
+| `uv run pytest -m smoke` | The built wheel is installed with pip in a clean virtual environment. The resulting CLI generates the default service, which starts, becomes ready and creates and reads an item over HTTP. |
 | zizmor | The workflows of a project generated with all four agents, and this repository's own, have no medium+ findings. |
 | Property-based tests (Hypothesis) | The CLI's external input (`--mcp NAME=URL`) only accepts credential-free HTTPS endpoints, and nothing it accepts can break out of the generated TOML/JSON config. |
 | Pinned base images | The generated `Dockerfile` pins both base images by digest for Python 3.12, 3.13 and 3.14. |

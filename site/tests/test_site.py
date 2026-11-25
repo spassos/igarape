@@ -22,7 +22,7 @@ PUBLIC = SITE / "public"
 README = ROOT / "README.md"
 SITE_URL = (SITE / "SITE_URL").read_text().strip()
 PLACEHOLDER = "%SITE_URL%"
-CSP = "default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'"
+CSP = "default-src 'none'; img-src 'self'; font-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'"
 # External links the page may point to (prefix followed by "/", "?", "#" or the end).
 ALLOWED_EXTERNAL = (
     "https://github.com/spassos/igarape",
@@ -207,10 +207,17 @@ def test_trust_checks_match_the_readme_table(page: Node) -> None:
 
 
 def test_quick_start_is_identical_to_the_readme(page: Node) -> None:
-    match = re.search(r"```bash\n(.*?)```", readme_section("Quick start"), flags=re.DOTALL)
-    assert match, "README quick start has no bash block"
-    (node,) = by_attr(page, "data-quickstart")
-    assert node.text() == match[1].rstrip("\n")
+    uv_commands, pip_install, pip_scaffold = re.findall(
+        r"```bash\n(.*?)\n```", readme_section("Quick start"), flags=re.DOTALL
+    )
+    (uv_block,) = by_attr(page, "data-quickstart")
+    (pip_block,) = by_attr(page, "data-pip-start")
+    (pip_scaffold_block,) = by_attr(page, "data-pip-scaffold")
+    (hero_command,) = by_attr(page, "data-hero-command")
+    assert uv_block.text() == uv_commands
+    assert pip_block.text() == pip_install
+    assert pip_scaffold_block.text() == pip_scaffold
+    assert hero_command.text() == uv_commands.splitlines()[0]
 
 
 # Safety: no scripts, no third-party requests, nothing the CSP would have to allow.
@@ -311,7 +318,10 @@ def test_og_image_is_1200_by_630_png() -> None:
 
 
 def test_page_weight_is_small(built: Path) -> None:
-    assert (built / "index.html").stat().st_size + (built / "style.css").stat().st_size < 50_000
+    shared = ("index.html", "style.css", "assets/bricolage-grotesque.woff2", "assets/icon.svg")
+    assert sum((built / path).stat().st_size for path in shared) < 60_000
+    assert (built / "assets/river.webp").stat().st_size < 250_000
+    assert (built / "assets/river-small.webp").stat().st_size < 100_000
 
 
 # The site stays out of the CLI package and of generated projects.

@@ -1,36 +1,40 @@
 <!doctype html>
-<!-- Open Graph card for the landing page, rendered to site/public/og.png by make-og-image.cjs. -->
+<!-- Open Graph card for the landing page, rendered by make-og-image.cjs. -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <style>
-  html, body { margin: 0; }
+  @font-face {
+    font-family: "Bricolage Grotesque";
+    src: url("../public/assets/bricolage-grotesque.woff2") format("woff2");
+    font-weight: 650;
+  }
+  * { box-sizing: border-box; }
   body {
+    display: grid;
+    grid-template-columns: 1fr 520px;
+    align-items: center;
+    gap: 36px;
     width: 1200px;
     height: 630px;
-    overflow: hidden;
-    background: #0b3d2e;
-    color: #ffffff;
-    font-family: Inter, "DejaVu Sans", sans-serif;
-    display: flex;
-    align-items: center;
-    gap: 64px;
-    padding: 0 96px;
-    box-sizing: border-box;
-    position: relative;
+    margin: 0;
+    padding: 54px;
+    background: #122720;
+    color: #f4f5ea;
+    font-family: "Bricolage Grotesque", system-ui, sans-serif;
   }
-  img { width: 300px; height: 300px; border-radius: 64px; box-shadow: 0 0 0 4px #1e8c7e; flex: none; }
-  h1 { margin: 0; font-size: 128px; line-height: 1; letter-spacing: -3px; font-weight: 800; }
-  p { margin: 28px 0 0; font-size: 52px; line-height: 1.15; color: #f4a259; font-weight: 600; }
-  .bar { position: absolute; left: 0; right: 0; bottom: 0; height: 14px; background: #2ec4b6; }
+  .brand { display: flex; align-items: center; gap: 14px; font-size: 32px; font-weight: 650; }
+  .icon { width: 54px; height: 54px; border-radius: 11px; }
+  h1 { margin: 34px 0 0; font-size: 66px; line-height: 1; letter-spacing: -.04em; font-weight: 650; }
+  h1 span { color: #daeea7; }
+  .river { width: 100%; height: 510px; object-fit: cover; border-radius: 20px; border: 1px solid #40584b; }
 </style>
 </head>
 <body>
-  <img src="../../docs/assets/icon.svg" alt="">
   <div>
-    <h1>Igarapé</h1>
-    <p>From idea to production</p>
+    <div class="brand"><img class="icon" src="../../docs/assets/icon.svg" alt=""> Igarapé</div>
+    <h1>Python services.<br><span>Ready for agents.</span></h1>
   </div>
-  <div class="bar"></div>
+  <img class="river" src="../public/assets/river.webp" alt="">
 </body>
 </html>
