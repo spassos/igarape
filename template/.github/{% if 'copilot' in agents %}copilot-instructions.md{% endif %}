@@ -1,0 +1,5 @@
+# Copilot instructions
+
+Read and follow `AGENTS.md` at the repository root before every task: it is the single source of
+commands, architecture, conventions and guardrails for every coding agent here. Do not duplicate it.
+Reviews use the checklist in `.agents/skills/review/SKILL.md`; the Definition of Done gate is `make check`.

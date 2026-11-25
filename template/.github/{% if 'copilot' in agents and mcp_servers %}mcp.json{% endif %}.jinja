@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+{%- for name, url in mcp_servers.items() %}
+    {{ name | to_json(ensure_ascii=False) }}: {"type": "http", "url": {{ url | to_json(ensure_ascii=False) }}}{% if not loop.last %},{% endif %}
+{%- endfor %}
+  }
+}
