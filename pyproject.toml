@@ -1,6 +1,6 @@
 [project]
 name = "igarape"
-version = "0.2.1"
+version = "0.2.2"
 description = "Generate Python services with an agentic SDLC for Codex, Claude Code, GitHub Copilot and OpenCode"
 readme = "README.pypi.md"
 license = "MIT"
