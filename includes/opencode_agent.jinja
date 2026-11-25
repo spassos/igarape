@@ -1,0 +1,31 @@
+{#- OpenCode V2 agent file (.opencode/agents/<role>.md) for a role from includes/roles.jinja. -#}
+{%- macro opencode_agent(role) -%}
+---
+description: {{ role.description | to_json(ensure_ascii=False) }}
+mode: subagent
+permissions:
+  # Last matching rule wins. Subagents do not launch other subagents (as Codex max_depth = 1).
+  - action: subagent
+    resource: "*"
+    effect: deny
+{%- if role.access == 'read-only' %}
+  # Read-only: no file edits; shell limited to Git inspection of the change under review.
+  - action: edit
+    resource: "*"
+    effect: deny
+  - action: shell
+    resource: "*"
+    effect: deny
+{%- for command in ["git status *", "git diff *", "git log *", "git show *", "git blame *"] %}
+  - action: shell
+    resource: "{{ command }}"
+    effect: allow
+{%- endfor %}
+  - action: shell
+    resource: "git *--output*"
+    effect: deny
+{%- endif %}
+---
+
+{{ role.instructions | trim }}
+{%- endmacro %}
