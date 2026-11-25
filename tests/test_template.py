@@ -133,6 +133,20 @@ def test_reference_spec_describes_only_chosen_integrations(project: Path) -> Non
         assert (project / test_file).is_file(), test_file
 
 
+def test_release_please_versions_pyproject_lockfile_and_changelog(project: Path) -> None:
+    name = tomllib.loads((project / "pyproject.toml").read_text())["project"]["name"]
+    version = tomllib.loads((project / "pyproject.toml").read_text())["project"]["version"]
+    (config,) = json.loads((project / "release-please-config.json").read_text())["packages"].values()
+    assert json.loads((project / ".release-please-manifest.json").read_text()) == {".": version}
+    # The python strategy bumps pyproject.toml; uv.lock records the project version too, and a stale
+    # one fails `uv sync --locked` in the image build of the release commit.
+    assert config["release-type"] == "python" and config["package-name"] == name
+    assert config["changelog-path"] == "CHANGELOG.md" and config["include-component-in-tag"] is False
+    assert config["extra-files"] == [
+        {"type": "toml", "path": "uv.lock", "jsonpath": f"$.package[?(@.name.value=='{name}')].version"}
+    ]
+
+
 @pytest.mark.slow
 def test_generated_project_passes_its_own_gates(project: Path) -> None:
     if project.name not in {"minimal", "with-mcp", "all-agents"} and shutil.which("docker") is None:

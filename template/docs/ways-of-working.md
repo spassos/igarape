@@ -68,15 +68,27 @@ Os subagents (`.codex/agents/`) são acionados pelas skills ou explicitamente:
 ## Entrega (CI/CD)
 
 1. **PR** → `ci.yml`: qualidade, testes, segurança, build/scan da imagem, título Conventional Commit.
-2. **Merge em `main`** → `cd.yml`: CI de novo. Com a variável de repositório `ENABLE_CD=true`, segue para imagem no GHCR (`:<sha>`) com attestation →
-   `deploy.yml` em **staging** → `scripts/smoke.py` confirma que `/health/live` responde a versão
-   (SHA) recém-publicada e `/health/ready` está 200 → OWASP ZAP baseline (scan passivo) contra
+2. **Merge em `main`** → `cd.yml`: CI de novo → job `release` (passo 3) → com a variável de
+   repositório `ENABLE_CD=true`, segue para imagem no GHCR (`:<sha>`, e `:<versão>` num commit de
+   release) com attestation → `deploy.yml` em **staging** → `scripts/smoke.py` confirma que
+   `/health/live` responde a versão recém-publicada (a versão semântica num commit de release, senão
+   o SHA) e `/health/ready` está 200 → OWASP ZAP baseline (scan passivo) contra
    staging → **production** (aprovação no GitHub Environment) → mesma verificação → rollback
    automático se falhar. Um alerta FAIL do ZAP não faz rollback de staging (a versão já foi
    verificada); apenas impede a promoção para produção. Relatório no artefato `zap-staging-report`.
-3. Com a variável de repositório `ENABLE_RELEASES=true`, `release.yml` (release-please) mantém o PR de release com CHANGELOG e versionamento semântico.
+3. Com a variável de repositório `ENABLE_RELEASES=true`, o job `release` do `cd.yml`
+   (release-please) roda depois do CI e mantém aberto o PR de release: a próxima versão calculada
+   pelos Conventional Commits (`fix` → patch, `feat` → minor, `!` → major) em `pyproject.toml`,
+   `uv.lock` e `.release-please-manifest.json`, e a nova entrada do `CHANGELOG.md`. Ninguém cria tag
+   à mão: o merge desse PR cria a tag `vX.Y.Z` e a GitHub Release, e a mesma execução do `cd.yml`
+   implanta essa versão (com `ENABLE_CD=true`). Os merges entre releases são implantados pelo SHA e
+   se acumulam no PR de release.
 
-As duas variáveis são independentes. Para projetos existentes que adotarem esta versão com
+As duas variáveis são independentes. Com `ENABLE_RELEASES=true`, habilite em **Settings → Actions →
+General** a opção **Allow GitHub Actions to create and approve pull requests**; sem ela o job
+`release` falha e, com CD ativo, bloqueia o deploy. O PR de release é aberto com `GITHUB_TOKEN`, que
+não dispara workflows de `pull_request`: se a proteção de branch exigir o CI nele, feche e reabra o
+PR para rodar as verificações. Para projetos existentes que adotarem esta versão com
 `copier update`, defina as opções desejadas antes do próximo merge. A falta de configuração
 do destino com CD ativo falha antes do rollout.
 

@@ -14,7 +14,7 @@ verified. For usage, see the [README](../README.md); for contribution rules, see
 | [`includes/roles.jinja`](../includes/roles.jinja) | The single definition of the four subagent roles. |
 | [`includes/opencode_agent.jinja`](../includes/opencode_agent.jinja) | Macro that renders one role as an OpenCode V2 agent file. |
 | [`tests/`](../tests) | Render, smoke and slow (generated `make check`) tests. |
-| [`.github/workflows/`](../.github/workflows) | Template CI, PyPI publishing and OpenSSF Scorecard. |
+| [`.github/workflows/`](../.github/workflows) | Template CI, release and PyPI publishing, CodeQL and OpenSSF Scorecard. |
 
 ## How the template works
 
@@ -137,7 +137,8 @@ flowchart TB
 ```
 
 Configuration comes only from `Settings` (`APP_*` environment variables, secrets as `SecretStr`).
-`/health/live` reports the build version (`APP_VERSION`, the commit SHA in CD) and `/health/ready`
+`/health/live` reports the build version (`APP_VERSION`: in CD, the release version on a release
+commit, otherwise the commit SHA) and `/health/ready`
 runs one readiness check per enabled dependency. The image is a multi-stage uv build running as a
 non-root user.
 
@@ -161,9 +162,13 @@ flowchart LR
   RENDER --> IMG["image x 2<br/>docker build, smoke test or<br/>entrypoints + migrations, Trivy"]
 ```
 
-[`publish-pypi.yml`](../.github/workflows/publish-pypi.yml) is manual, runs only on `main`,
-builds and checks the distributions, generates a service from the release wheel and runs its unit
-tests, then publishes the same artifacts with PyPI trusted publishing (OIDC).
+[`publish-pypi.yml`](../.github/workflows/publish-pypi.yml) runs release-please on every push to
+`main`: it keeps a release PR that bumps `pyproject.toml`, `uv.lock` and the manifest from
+Conventional Commits and adds the entry to `CHANGELOG.md`. Merging that PR creates the `vX.Y.Z` tag
+and GitHub release; the same run then builds and checks the distributions, generates a service from
+the release wheel and runs its unit tests, and publishes the same artifacts with PyPI trusted
+publishing (OIDC). Publishing stays in that workflow because a release created with `GITHUB_TOKEN`
+triggers no other workflow. A manual run on `main` rebuilds and publishes the current version.
 [`scorecard.yml`](../.github/workflows/scorecard.yml) publishes OpenSSF Scorecard results weekly
 and on every push to `main`.
 
@@ -174,17 +179,19 @@ flowchart LR
   PR["pull request"] --> CI["ci.yml<br/>lint, types, arch, tests + coverage,<br/>pip-audit, gitleaks, zizmor,<br/>image + Trivy, PR title"]
   MAIN["push to main"] --> CD["cd.yml"]
   CD --> CI2["ci.yml (reused)"]
-  CI2 -- "ENABLE_CD=true" --> BUILD["build: push to GHCR,<br/>provenance attestation"]
-  BUILD --> STG["deploy.yml: staging<br/>deploy, smoke test on SHA,<br/>ZAP baseline"]
-  STG --> PRD["deploy.yml: production<br/>environment approval,<br/>deploy, smoke test on SHA"]
+  CI2 --> REL["release: release-please<br/>(ENABLE_RELEASES=true)<br/>release PR, or tag + GitHub release"]
+  REL -- "ENABLE_CD=true" --> BUILD["build: push to GHCR (:sha, :version<br/>on a release), provenance attestation"]
+  BUILD --> STG["deploy.yml: staging<br/>deploy, smoke test on version,<br/>ZAP baseline"]
+  STG --> PRD["deploy.yml: production<br/>environment approval,<br/>deploy, smoke test on version"]
   STG -- "failure" --> RB1["rollback"]
   PRD -- "failure" --> RB2["rollback"]
-  MAIN -- "ENABLE_RELEASES=true" --> REL["release.yml<br/>release-please"]
 ```
 
 `deploy.yml` checks that `APP_URL` is set before rolling out, calls `scripts/deploy.sh deploy`
 (Kubernetes by default; the `deploy|rollback` contract can target any platform), runs
-`scripts/smoke.py` until `/health/live` reports the deployed SHA and `/health/ready` is OK, and
-calls `scripts/deploy.sh rollback` if the rollout or the verification fails. Optional AI PR review
+`scripts/smoke.py` until `/health/live` reports the deployed version (the release version on a
+release commit, otherwise the SHA) and `/health/ready` is OK, and calls `scripts/deploy.sh rollback`
+if the rollout or the verification fails. The `release` job runs after CI and before the build, so
+merging the release PR tags the commit and ships it as that version in the same run. Optional AI PR review
 workflows (`codex-review.yml`, `claude-review.yml`) run read-only and post their review from a
 separate job.

@@ -1,6 +1,6 @@
-# Continuous Delivery: main -> CI -> signed image -> staging (verified) -> production (approval + verified).
-# Setup: docs/ways-of-working.md#entrega-cicd
-name: Main CI and optional delivery
+# Continuous Delivery: main -> CI -> release (optional) -> signed image -> staging (verified)
+# -> production (approval + verified). Setup: docs/ways-of-working.md#entrega-cicd
+name: Main CI, release and optional delivery
 
 on:
   push:
@@ -20,10 +20,33 @@ jobs:
       contents: read
       pull-requests: read
 
+  release:
+    # Semantic version + CHANGELOG from Conventional Commits (release-please), when
+    # ENABLE_RELEASES=true. It keeps a release PR (CHANGELOG.md, pyproject.toml, uv.lock); merging
+    # it tags vX.Y.Z and publishes the GitHub release here, after CI and before the build, so the
+    # same run ships that version (tags created with GITHUB_TOKEN start no other workflow).
+    # The job always runs (only the step is gated) so the build never waits on a skipped job.
+    name: Release (release-please)
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      version: ${{ steps.release-please.outputs.version }}
+    steps:
+      - id: release-please
+        if: vars.ENABLE_RELEASES == 'true' && github.ref == 'refs/heads/main'
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
   build:
     if: vars.ENABLE_CD == 'true' && github.ref == 'refs/heads/main'
     name: Build, push and attest image
-    needs: ci
+    needs: [ci, release]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -32,12 +55,27 @@ jobs:
       attestations: write
     outputs:
       image: ${{ steps.ref.outputs.image }}
+      version: ${{ steps.name.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - id: name
-        run: echo "repo=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+        # A release commit ships its semantic version (APP_VERSION and an extra image tag);
+        # any other commit ships its SHA.
+        env:
+          RELEASE: ${{ needs.release.outputs.version }}
+        run: |
+          repo="ghcr.io/${GITHUB_REPOSITORY,,}"
+          {
+            echo "repo=$repo"
+            echo "version=${RELEASE:-$GITHUB_SHA}"
+            echo "tags<<EOF"
+            echo "$repo:$GITHUB_SHA"
+            echo "$repo:main"
+            if [ -n "$RELEASE" ]; then echo "$repo:$RELEASE"; fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
@@ -49,10 +87,8 @@ jobs:
         with:
           context: .
           push: true
-          build-args: APP_VERSION=${{ github.sha }}
-          tags: |
-            ${{ steps.name.outputs.repo }}:${{ github.sha }}
-            ${{ steps.name.outputs.repo }}:main
+          build-args: APP_VERSION=${{ steps.name.outputs.version }}
+          tags: ${{ steps.name.outputs.tags }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
@@ -74,6 +110,7 @@ jobs:
     with:
       environment: staging
       image: ${{ needs.build.outputs.image }}
+      version: ${{ needs.build.outputs.version }}
 
   production:
     needs: [build, staging]
@@ -83,3 +120,4 @@ jobs:
     with:
       environment: production
       image: ${{ needs.build.outputs.image }}
+      version: ${{ needs.build.outputs.version }}

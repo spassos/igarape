@@ -176,5 +176,6 @@ opencode.json      servidores MCP do OpenCode{% endif %}
 ## Entrega
 
 Cada merge roda o CI. Configure as variáveis do repositório `ENABLE_CD=true` para publicar a
-imagem e implantar em staging e produção, e `ENABLE_RELEASES=true` para releases automáticas. Detalhes
+imagem e implantar em staging e produção, e `ENABLE_RELEASES=true` para releases automáticas
+(PR de release com versão e CHANGELOG; o merge cria a tag e a GitHub Release e implanta essa versão). Detalhes
 em [`docs/ways-of-working.md#entrega-cicd`](docs/ways-of-working.md#entrega-cicd).

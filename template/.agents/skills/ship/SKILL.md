@@ -14,7 +14,11 @@ description: Deliver a reviewed change through the repository's enabled workflow
 4. Human approval → squash merge to `main`.
 5. Watch the main CI run. With CD disabled, a merged change with green CI completes delivery.
 6. When the repository variable `ENABLE_CD` is `true`, follow the image publication, staging and
-   production jobs. Check each deployment's smoke test for the expected commit and readiness
-   before reporting it live. Report any skipped, pending or failed deployment accurately.
-7. When `ENABLE_RELEASES` is `true`, release-please maintains the release PR and changelog.
+   production jobs. Check each deployment's smoke test for the expected version (the release
+   version on a release commit, otherwise the commit SHA) and readiness before reporting it live.
+   Report any skipped, pending or failed deployment accurately.
+7. When `ENABLE_RELEASES` is `true`, the `release` job of `cd.yml` (release-please) keeps the
+   release PR (version in `pyproject.toml` and `uv.lock`, `CHANGELOG.md`). Never tag by hand or
+   edit those versions: merging the release PR, after human approval, creates the `vX.Y.Z` tag and
+   GitHub release, and the same run deploys that version when CD is enabled.
    Check product metrics when defined and record the actual delivery status for planned work.

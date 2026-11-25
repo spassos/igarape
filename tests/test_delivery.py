@@ -29,7 +29,6 @@ def matches(condition: str, context: dict[str, str]) -> bool:
 @pytest.mark.parametrize("cd,releases", [(False, False), (True, False), (False, True), (True, True)])
 def test_main_delivery_policy(cd: bool, releases: bool) -> None:
     delivery = workflow("cd")
-    release = workflow("release")
     jobs = delivery["jobs"]
     context = {"github.ref": "refs/heads/main"}
     if cd:
@@ -38,13 +37,52 @@ def test_main_delivery_policy(cd: bool, releases: bool) -> None:
         context["vars.ENABLE_RELEASES"] = "true"
     assert "pull_request" in workflow("ci")["on"]
     assert "main" in delivery["on"]["push"]["branches"]
-    assert "main" in release["on"]["push"]["branches"]
+    assert not (TEMPLATE / ".github" / "workflows" / "release.yml").exists()
     assert jobs["ci"]["uses"] == "./.github/workflows/ci.yml" and "if" not in jobs["ci"]
     assert matches(jobs["build"]["if"], context) is cd
-    assert matches(release["jobs"]["release-please"]["if"], context) is releases
-    assert jobs["build"]["needs"] == "ci"
+    # The release job always runs after CI (only its step is gated), so the build never waits on
+    # a skipped job and a release commit is tagged before its image is built and deployed.
+    release = jobs["release"]
+    assert release["needs"] == "ci" and "if" not in release
+    (step,) = release["steps"]
+    assert step["uses"].startswith("googleapis/release-please-action@")
+    assert matches(step["if"], context) is releases
+    assert release["permissions"] == {"contents": "write", "issues": "write", "pull-requests": "write"}
+    assert set(jobs["build"]["needs"]) == {"ci", "release"}
     assert jobs["staging"]["needs"] == "build"
     assert set(jobs["production"]["needs"]) == {"build", "staging"}
+    for environment in ("staging", "production"):
+        assert jobs[environment]["with"]["version"] == "${{ needs.build.outputs.version }}"
+
+
+@pytest.mark.parametrize("release", ["", "1.4.0"])
+def test_image_ships_the_release_version_or_the_sha(release: str, tmp_path: Path) -> None:
+    build = workflow("cd")["jobs"]["build"]
+    step = next(step for step in build["steps"] if step.get("id") == "name")
+    assert step["env"]["RELEASE"] == "${{ needs.release.outputs.version }}"
+    output = tmp_path / "output"
+    sha = "0123abc"
+    env = {
+        "RELEASE": release,
+        "GITHUB_SHA": sha,
+        "GITHUB_REPOSITORY": "Acme/Orders",
+        "GITHUB_OUTPUT": str(output),
+    }
+    subprocess.run(["bash", "-eu", "-c", step["run"]], check=True, env=env)
+    repo = "ghcr.io/acme/orders"
+    tags = [f"{repo}:{sha}", f"{repo}:main"] + ([f"{repo}:{release}"] if release else [])
+    lines = "\n".join(["tags<<EOF", *tags, "EOF"])
+    assert output.read_text() == f"repo={repo}\nversion={release or sha}\n{lines}\n"
+    assert build["outputs"]["version"] == "${{ steps.name.outputs.version }}"
+    pushed = next(step for step in build["steps"] if step.get("id") == "build")["with"]
+    assert pushed["build-args"] == "APP_VERSION=${{ steps.name.outputs.version }}"
+    assert pushed["tags"] == "${{ steps.name.outputs.tags }}"
+    # The smoke test checks what was built, not the SHA, so a release proves its version is live.
+    deploy = workflow("deploy")
+    assert deploy["on"]["workflow_call"]["inputs"]["version"]["required"] == "true"
+    verify = next(step for step in deploy["jobs"]["deploy"]["steps"] if step.get("id") == "verify")
+    assert '--version "$VERSION"' in verify["run"]
+    assert deploy["jobs"]["deploy"]["env"]["VERSION"] == "${{ inputs.version }}"
 
 
 def test_deploy_requires_destination_before_rollout() -> None:

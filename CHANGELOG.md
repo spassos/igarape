@@ -7,7 +7,22 @@ their advisory or CVE identifier.
 
 ## [Unreleased]
 
+### Changed
+
+- Releases need no manual tagging. This repository runs release-please in `publish-pypi.yml`: the
+  release PR bumps `pyproject.toml`, `uv.lock` and the manifest from Conventional Commits and adds
+  the `CHANGELOG.md` entry; merging it tags `vX.Y.Z`, publishes the GitHub release and publishes
+  that version to PyPI in the same run.
+- Generated services run release-please (`ENABLE_RELEASES=true`) as a `release` job of `cd.yml`,
+  after CI and before the image build (`release.yml` is removed). Merging the release PR tags the
+  commit and, with CD, deploys it as that version: the image gets a `:X.Y.Z` tag, `APP_VERSION` and
+  `/health/live` report `X.Y.Z` and the smoke test checks it. Other merges still ship the SHA.
+
 ### Fixed
+
+- Generated release PRs only updated `CHANGELOG.md` (release type `simple`): the version in
+  `pyproject.toml` never moved. They now use the `python` release type and also bump the project's
+  entry in `uv.lock`, so the release commit still passes `uv sync --locked` and `uv lock --check`.
 
 - The reference spec and plan (`docs/specs/001-items/`) describe only the integrations chosen at
   generation. An in-memory project no longer documents a PostgreSQL table, migrations, Redis or

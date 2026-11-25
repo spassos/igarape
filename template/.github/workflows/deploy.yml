@@ -11,6 +11,10 @@ on:
       image:
         type: string
         required: true
+      version:
+        # What /health/live must report: the release version, or the commit SHA.
+        type: string
+        required: true
     secrets:
       # Resolved from the GitHub Environment secrets of the job below.
       KUBECONFIG_DATA:
@@ -35,6 +39,7 @@ jobs:
     env:
       ENVIRONMENT: ${{ inputs.environment }}
       IMAGE: ${{ inputs.image }}
+      VERSION: ${{ inputs.version }}
       KUBECONFIG_DATA: ${{ secrets.KUBECONFIG_DATA }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -54,7 +59,7 @@ jobs:
         id: verify
         env:
           APP_URL: ${{ vars.APP_URL }}
-        run: python3 scripts/smoke.py --url "$APP_URL" --version "$GITHUB_SHA"
+        run: python3 scripts/smoke.py --url "$APP_URL" --version "$VERSION"
       - name: Roll back
         if: failure() && (steps.rollout.outcome == 'failure' || steps.verify.outcome == 'failure')
         run: scripts/deploy.sh rollback

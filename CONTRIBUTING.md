@@ -81,6 +81,29 @@ Use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) for c
 and PR titles: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `build:`, `ci:`, `chore:`. Keep
 one focused change per PR and fill in the [PR template](.github/pull_request_template.md).
 
+## Releases
+
+Nobody tags by hand. On every push to `main`,
+[`publish-pypi.yml`](.github/workflows/publish-pypi.yml) runs release-please, which keeps an open
+release PR: the next version from the Conventional Commits since the last tag (`fix` → patch,
+`feat` → minor, `!`/`BREAKING CHANGE` → major) in `pyproject.toml`, `uv.lock` and
+[`.release-please-manifest.json`](.release-please-manifest.json), and the new `CHANGELOG.md`
+entry (`feat` → Added, `fix` → Fixed, `perf`/`deps`/`revert`/`docs` → Changed; see
+[`release-please-config.json`](release-please-config.json)). Review the PR like any other and merge
+it when you want to release: the same workflow run tags `vX.Y.Z`, publishes the GitHub release and
+then builds, tests and publishes that version to PyPI ([docs/pypi.md](docs/pypi.md)).
+
+Write PR titles for the changelog: the squash commit title becomes its line. Don't edit released
+`CHANGELOG.md` entries by hand; the open release PR is the list of unreleased changes. Notes
+written by hand under `## [Unreleased]` are not moved by release-please (it inserts the new version
+above that heading), so before merging the release PR, move them into its entry and delete the
+heading.
+
+Repository settings this needs: **Settings → Actions → General → Allow GitHub Actions to create
+and approve pull requests**, and the `pypi` environment with the trusted publisher. The release PR
+is opened with `GITHUB_TOKEN`, which starts no `pull_request` workflow; if branch protection
+requires Template CI on it, close and reopen the PR (or push to its branch) to run the checks.
+
 ## Adding a coding agent adapter
 
 1. **Register it:** add the choice to `agents` in [`copier.yml`](copier.yml) and to `AGENTS` in
