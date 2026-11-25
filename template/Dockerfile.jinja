@@ -18,7 +18,10 @@ ARG APP_VERSION=dev
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     APP_VERSION=${APP_VERSION}
-RUN groupadd --system app && useradd --system --gid app --no-create-home app
+# The app runs from its own venv: drop the base image's pip (its vendored libraries carry
+# fixable CVEs that fail the image scan) so the runtime ships nothing it does not use.
+RUN python -m pip uninstall --yes --disable-pip-version-check --root-user-action=ignore pip \
+    && groupadd --system app && useradd --system --gid app --no-create-home app
 WORKDIR /app
 COPY --from=build --chown=app:app /app/.venv /app/.venv
 {%- if use_postgres %}
