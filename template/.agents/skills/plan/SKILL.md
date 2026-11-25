@@ -12,6 +12,9 @@ description: Technical design and task breakdown for an approved spec — writes
    - Design per layer (domain / application+ports / adapters / entrypoints / container wiring).
    - Contracts and migrations (expand/contract for breaking changes).
    - Failure modes: timeouts, retries (idempotent only), duplicates, ordering, partial failure.
+   - Threats and abuse cases: walk the OWASP API Security Top 10 (2023) for each new route,
+     consumer or outbound call (`docs/conventions.md#segurança-owasp-api-top-10`) and name the
+     control and the test for each relevant risk.
    - Test strategy: map every AC to test level and file.
    - Tasks: small (≤ ~2h), each leaves `make check` green, ordered so main stays releasable.
 3. Decision that is costly to reverse (new datastore, broker, library, pattern, public contract)?

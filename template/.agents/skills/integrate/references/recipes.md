@@ -22,24 +22,37 @@
 
 ## Consume an event
 - Add a pydantic command/event model in `entrypoints/worker.py` and a subscriber in
-  `register_handlers` that only parses and delegates to a use case.
+  `register_handlers` that only parses and delegates to a use case. Messages carry identity
+  (`owner_id`) only from trusted internal producers; restrict who may publish with broker ACLs.
 - Handlers must be idempotent (dedupe by event id or natural key) and safe to retry.
 - Unit test with FastStream's `TestKafkaBroker`/`TestRabbitBroker`; integration test with a
   real broker container.
 
 ## Third-party HTTP API
 ```python
+class PaymentStatusResponse(BaseModel):  # the provider's contract, validated at our edge
+    status: Literal["pending", "paid", "failed"]
+
+
 class PaymentsGateway:  # adapters/payments.py, implements a port
     def __init__(self, client: httpx.AsyncClient) -> None:
         self._client = client
 
     @retry_transient  # only for idempotent calls (GET/PUT or with idempotency keys)
     async def get_status(self, payment_id: str) -> PaymentStatus:
-        response = await self._client.get(f"/payments/{payment_id}")
+        response = await self._client.get(f"/payments/{quote(payment_id, safe='')}")
         response.raise_for_status()
-        return PaymentStatus(response.json()["status"])
+        body = PaymentStatusResponse.model_validate_json(response.content)
+        return PaymentStatus(body.status)
 ```
 - Client from `create_http_client(settings.payments_url, timeout_seconds=...)`, created and
-  closed in `container.py`.
+  closed in `container.py`. Every call has a timeout; never use library defaults.
+- Base URLs come from `Settings`. Any URL that comes from a user, a message or a provider
+  response (webhooks, callbacks, file links) goes through `ensure_public_https_url()` from
+  `adapters/http_client.py` before the request (SSRF, OWASP API7). Do not follow redirects to
+  unvalidated hosts.
+- Treat provider responses as untrusted input (OWASP API10): parse them with a pydantic model,
+  reject unexpected shapes as a domain error, cap sizes you store.
 - Map provider errors to domain errors; never leak provider payloads to our API.
-- Tests with `respx` (unit) — no real internet calls in CI. Validate untrusted URLs (SSRF).
+- Tests with `respx` (unit) — no real internet calls in CI. Cover a malformed provider response
+  and a rejected private/`http://` URL.

@@ -12,10 +12,14 @@ description: Review the current change against the request or approved spec, con
 3. Checklist (the reviewers use it too):
    - [ ] The regression test fails without the fix, or each acceptance criterion has a test that fails without the change.
    - [ ] Layering respected (`make arch`); domain/application framework-free; wiring only in `container.py`.
-   - [ ] Inputs validated at the edge; domain errors mapped to correct status codes; no stack traces leaked.
+   - [ ] Inputs validated at the edge; domain errors mapped to correct status codes as `application/problem+json`; no stack traces or exception text leaked.
+   - [ ] No new public route: every business route is under `/v1` and declares `require_scopes(...)` with the least scope; only `/health/*` is public.
+   - [ ] Object-level authorization (BOLA): access to owned objects is filtered by owner in the use case, another owner's object returns `404`, and a two-subject test proves it in `tests/api/test_security.py`.
+   - [ ] OWASP API Top 10 (2023) pass on changed routes and consumers: no client-set `id`/`owner_id` or internal fields (mass assignment), list endpoints paginated with a max `limit`, outbound URLs checked with `ensure_public_https_url`, third-party responses validated with pydantic models, `/docs` still local/test only.
+   - [ ] Tests at the right level: `401`/`403`/`404` per acceptance criterion, Hypothesis for new domain invariants, `tests/api/test_openapi_contract.py` (Schemathesis) green without new exclusions.
    - [ ] Every network call has a timeout; retries only on idempotent operations; consumers idempotent.
-   - [ ] No secrets/PII in code, logs, fixtures; settings via `Settings`/`SecretStr`.
-   - [ ] Migrations reversible or expand/contract; API/event contracts backward compatible or versioned.
+   - [ ] No secrets/PII/tokens in code, logs, fixtures; settings via `Settings`/`SecretStr`; no rate limiting re-implemented in the app (gateway owns it).
+   - [ ] Migrations reversible (`tests/integration/test_migrations.py` green) or expand/contract; API/event contracts backward compatible or versioned.
    - [ ] Logs are structured with meaningful event names; readiness covers new dependencies.
    - [ ] Clean code: small functions, clear names, no dead/commented code, no needless abstraction.
    - [ ] Docs updated (spec contracts, ADRs, README/AGENTS.md if commands changed).

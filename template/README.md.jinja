@@ -31,9 +31,41 @@ make bootstrap    # inicializa Git e resolve dependências
 make run          # inicia a API com reload
 ```
 {% endif %}
-Abra a documentação em http://localhost:8000/docs. Use `make test-unit` para feedback rápido e
-`make check` para lint, tipos, arquitetura, auditoria, testes e cobertura. Para instalar os hooks
-locais, use `make setup`. `make help` lista todos os comandos.
+Abra a documentação em http://localhost:8000/docs (só em `local`/`test`). Use `make test-unit`
+para feedback rápido (unit, propriedades, API, segurança e contrato OpenAPI) e `make check` para
+lint, tipos, arquitetura, auditoria, testes e cobertura. Para instalar os hooks locais, use
+`make setup`. `make help` lista todos os comandos.
+
+## Autenticação
+
+As rotas de negócio ficam em `/v1` e exigem `Authorization: Bearer <JWT>` com escopo
+(`items:read`, `items:write`); só `/health/live` e `/health/ready` são públicas. Sem token a API
+responde `401`, sem escopo `403`, e item de outro usuário `404`. Erros seguem
+`application/problem+json`.
+
+Em `local` e `test`, gere tokens assinados com `APP_AUTH_DEV_SECRET` (veja `.env.example`):
+
+```bash
+TOKEN=$(make -s token sub=alice scopes="items:read items:write")
+curl -s -X POST localhost:8000/v1/items -H "Authorization: Bearer $TOKEN" \
+  -H 'Content-Type: application/json' -d '{"name": "book"}'
+curl -s localhost:8000/v1/items/<id> -H "Authorization: Bearer $TOKEN"
+```
+
+Em staging e produção o token vem do seu provedor OIDC. Nesses ambientes a aplicação não sobe
+sem as variáveis obrigatórias abaixo ou com `APP_AUTH_DEV_SECRET` definido:
+
+| Variável | Uso |
+|---|---|
+| `APP_AUTH_JWKS_URL` | URL HTTPS do JWKS do provedor (obrigatória) |
+| `APP_AUTH_ISSUER` | `iss` exato emitido pelo provedor (obrigatória) |
+| `APP_AUTH_AUDIENCE` | identificador desta API no provedor (obrigatória) |
+| `APP_AUTH_ALGORITHMS` | algoritmos aceitos (padrão `RS256`) |
+| `APP_MAX_BODY_BYTES` | limite do corpo da requisição (padrão 1 MiB, acima disso `413`) |
+
+Como configurar por ambiente: [`docs/ways-of-working.md`](docs/ways-of-working.md#entrega-cicd).
+`/docs` e `/openapi.json` ficam desligados em staging e produção. Rate limiting é responsabilidade
+do API gateway. Controles e política de reporte: [`SECURITY.md`](SECURITY.md).
 
 {% if 'codex' in agents -%}
 ## Abrir no Codex

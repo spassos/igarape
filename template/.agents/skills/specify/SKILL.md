@@ -16,6 +16,9 @@ description: Write a testable feature spec (acceptance criteria, API/event contr
 4. Contracts: for HTTP give method, path, request/response examples and error codes; for events
    give topic/queue, key, JSON payload example and versioning rule; for data give tables/columns
    and migration impact. Breaking changes need a migration path.
-5. Non-functional: latency/throughput targets, security (authn/authz, PII), observability (logs,
-   events), feature flags/rollout.
+5. Non-functional: latency/throughput targets, observability (logs, events), feature
+   flags/rollout. Fill the template's Security table: authentication, the authorization rule per
+   resource (scope per route, who may read/change each object), data exposure, limits (field
+   sizes, max page size, gateway rate limits) and outbound calls. Every `/v1` route gets `401`,
+   `403` and, for owned resources, another-owner `404` acceptance criteria.
 6. Ask the human to approve. Set `Status: Approved`. Next: `$plan`.

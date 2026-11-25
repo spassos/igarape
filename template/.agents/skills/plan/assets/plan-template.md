@@ -14,12 +14,17 @@
 ## Contratos e migrações
 <OpenAPI/eventos/tabelas. Compatibilidade e estratégia expand → contract.>
 
+## Ameaças e abusos
+| Ameaça (OWASP API 2023) | Controle | Teste |
+|---|---|---|
+| <ex.: API1 ler objeto de outro dono> | <filtro por dono → `404`> | <`tests/api/test_security.py::...`> |
+
 ## Modos de falha
 | Falha | Comportamento | Teste |
 |---|---|---|
 
 ## Estratégia de testes
-| AC | Nível (unit/api/integration) | Arquivo de teste |
+| AC | Nível (unit/property/api/contract/integration) | Arquivo de teste |
 |---|---|---|
 
 ## Tarefas
