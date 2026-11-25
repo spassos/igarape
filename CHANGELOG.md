@@ -5,6 +5,14 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). Security fixes are listed under **Security** with
 their advisory or CVE identifier.
 
+## [0.2.2](https://github.com/spassos/igarape/compare/v0.2.1...v0.2.2) (2026-11-25)
+
+
+### Changed
+
+* **site:** redesign the Igarapé landing page ([e1e0c7a](https://github.com/spassos/igarape/commit/e1e0c7aa2672673638fe03cb391d5594194b410e))
+* **site:** redesign the Igarapé landing page ([4687b71](https://github.com/spassos/igarape/commit/4687b71d112f9cd2cb3486e10a528ac26c5d4539))
+
 ## [0.2.1](https://github.com/spassos/igarape/compare/v0.2.0...v0.2.1) (2026-11-25)
 
 
