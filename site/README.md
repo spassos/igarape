@@ -8,7 +8,7 @@ packaged in the `igarape` wheel or sdist, rendered by Copier, or tested by the C
 | Path | Role |
 |---|---|
 | `SITE_URL` | The site's public URL, in one place. `%SITE_URL%` in the pages is replaced with it at build time. |
-| `public/` | Published files: `index.html`, `404.html`, `style.css`, `og.png`. |
+| `public/` | Published pages, stylesheet, social image and local hero and font assets. |
 | `scripts/build.sh` | Assembles `_site/`: `public/`, the icons from `docs/assets/` (copied, not duplicated) and the URL. |
 | `scripts/og-image.html`, `scripts/make-og-image.cjs` | Source and renderer of the Open Graph card `public/og.png`. |
 | `tests/test_site.py` | Fidelity and safety test (below). |
@@ -16,30 +16,22 @@ packaged in the `igarape` wheel or sdist, rendered by Copier, or tested by the C
 
 ## Content rules
 
-- **English only.** Every sentence in `<main>` is copied literally from the root `README.md` and
-  marked `data-claim`. The test strips Markdown from the README and fails if a claim is not found
-  in it, so a README change that drops a claim breaks the check, and the page cannot say more than
-  the README (which in turn may only claim what the template and its tests deliver).
+- **English only.** Keep product claims aligned with the root `README.md` and mark them with
+  `data-claim`. The test strips Markdown from the README and fails when a claim is missing.
 - Lists that come from the repository are checked against it: agents (`data-agent`) and Python
   versions (`data-python`) against `copier.yml`, skills (`data-skill`) against
   `template/.agents/skills/`, phases (`data-phase`) and CI checks (`data-check`) against the README,
-  and the quick-start block (`data-quickstart`) must be identical to the README's.
+  and the `uv` and `pip` quick-start commands must match the README.
 - No `<script>`, inline styles, event handlers or third-party resources. Each page carries the CSP
-  `default-src 'none'; img-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'`
+  `default-src 'none'; img-src 'self'; font-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'`
   (Pages cannot set HTTP headers; `frame-ancestors` does not work in a meta tag, an accepted gap).
   Badges use text links. External links point to this repository, its PyPI project and its
   Scorecard page and use `rel="noopener"`.
-- Colours: only these pairs (WCAG 2.x AA).
-
-  | Text / background | Ratio | Use |
-  |---|---|---|
-  | white or foam `#B8F0E8` / forest `#0B3D2E` | 12.2 / 9.7 | Any text |
-  | forest / white or paper `#F7FAF8` | 12.2 / 11.6 | Body text |
-  | leaf `#1F6F50` / white | 6.1 | Links, text; white on leaf for buttons |
-  | canoe `#F4A259` / forest (and forest / canoe) | 5.9 | Accents, primary button, focus ring on dark |
-  | river `#2EC4B6` / forest (and forest / river) | 5.6 | Links and chips on dark |
-  | bank `#1E8C7E` / white | 4.1 | Large text and borders only |
-  | river or canoe / white, bank or leaf / forest | ≤ 3 | Decoration only, never text |
+- The stylesheet defines the forest and paper palettes. Main text, links and code use combinations
+  that meet WCAG AA contrast. Retain visible keyboard focus and respect reduced-motion preferences.
+- The river artwork is a generated illustration of an Amazon waterway. The two local WebP sizes
+  keep the mobile download below 100 KB. The heading font is a local Bricolage Grotesque subset
+  with its Open Font License in `public/assets/`.
 
 ## Preview locally
 
@@ -94,8 +86,8 @@ at Pages before it is verified can be taken over by another account.
 
 ## Regenerate the Open Graph image
 
-`public/og.png` (1200×630) is committed. Regenerate it after changing `scripts/og-image.html` or the
-icon. This is a one-off maintainer tool, not a repository dependency: it needs Node.js and
+`public/og.png` (1200×630) is committed. Regenerate it after changing `scripts/og-image.html`,
+the hero image or the icon. The maintainer tool needs Node.js and
 Playwright with Chromium.
 
 ```bash
