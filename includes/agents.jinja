@@ -1,0 +1,7 @@
+{#- Agent-aware wording for generated docs, so a project mentions only the agents it was generated for.
+    Import with context: {%- from 'includes/agents.jinja' import skill with context -%} -#}
+
+{#- How to invoke a shared skill: Codex `$name`, Claude Code `/name`, Copilot and OpenCode by name. -#}
+{%- macro skill(name) -%}
+{%- if 'codex' in agents -%}${{ name }}{%- elif 'claude' in agents -%}/{{ name }}{%- else -%}{{ name }}{%- endif -%}
+{%- endmacro -%}

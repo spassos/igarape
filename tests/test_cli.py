@@ -206,3 +206,33 @@ def test_cli_points_to_uv_when_it_is_missing(monkeypatch: pytest.MonkeyPatch) ->
     notes = cli.environment_notes(["PostgreSQL"])
     assert notes[0].startswith("uv is not on your PATH")
     assert "make dev DOCKER=0" in notes[1]
+
+
+def test_cli_without_agent_outside_a_terminal_uses_codex_and_says_so(tmp_path: Path) -> None:
+    project = tmp_path / "orders"
+    result = subprocess.run(
+        ["igarape", "new", str(project), "--template", str(ROOT)],
+        stdin=subprocess.DEVNULL,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "no --agent given, configuring Codex only" in result.stderr
+    assert (project / ".codex").is_dir()
+    assert not any((project / name).exists() for name in (".claude", ".opencode", ".github/agents"))
+
+
+@pytest.mark.parametrize(
+    ("typed", "expected"),
+    [(["\n"], ["codex"]), (["1\n"], ["claude"]), (["9\n", "4, 1\n"], ["claude", "opencode"])],
+    ids=["default", "one", "retry-then-several"],
+)
+def test_choose_agents_asks_until_the_answer_is_valid(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], typed: list[str], expected: list[str]
+) -> None:
+    answers = iter(line.rstrip("\n") for line in typed)
+    monkeypatch.setattr("builtins.input", lambda: next(answers))
+    assert cli.choose_agents() == expected
+    prompt = capsys.readouterr().err
+    assert "Only its files are generated" in prompt
+    assert all(name in prompt for name in cli.AGENT_NAMES.values())

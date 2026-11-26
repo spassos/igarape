@@ -1,3 +1,4 @@
+{%- from 'includes/agents.jinja' import skill with context -%}
 # {{ project_name }}
 
 {{ description }}.
@@ -140,18 +141,18 @@ credenciais em variáveis de ambiente (`{env:NOME}`), nunca no arquivo.
 {% endif -%}
 ## Como trabalhamos
 
-Para uma correção local bem definida, comece em `$implement` com um teste de regressão. Mudanças
+Para uma correção local bem definida, comece em `{{ skill('implement') }}` com um teste de regressão. Mudanças
 de contrato público, migrações e decisões arquiteturais passam por especificação e plano aprovados.
 O fluxo completo está em [`docs/ways-of-working.md`](docs/ways-of-working.md).
 
 | Fase | Skill | Artefato |
 |---|---|---|
-| Discovery | `$discovery` | `docs/product/` |
-| Especificação | `$specify` | `docs/specs/NNN-*/spec.md` |
-| Plano/ADR | `$plan` | `plan.md`, `docs/adr/` |
-| Implementação | `$implement`, `$integrate` | código + testes |
-| Revisão | `$review` | PR |
-| Entrega | `$ship` | Merge com CI verde; produção verificada quando o CD está ativo |
+| Discovery | `{{ skill('discovery') }}` | `docs/product/` |
+| Especificação | `{{ skill('specify') }}` | `docs/specs/NNN-*/spec.md` |
+| Plano/ADR | `{{ skill('plan') }}` | `plan.md`, `docs/adr/` |
+| Implementação | `{{ skill('implement') }}`, `{{ skill('integrate') }}` | código + testes |
+| Revisão | `{{ skill('review') }}` | PR |
+| Entrega | `{{ skill('ship') }}` | Merge com CI verde; produção verificada quando o CD está ativo |
 
 Regras para agentes e pessoas: [`AGENTS.md`](AGENTS.md) · Convenções: [`docs/conventions.md`](docs/conventions.md).
 

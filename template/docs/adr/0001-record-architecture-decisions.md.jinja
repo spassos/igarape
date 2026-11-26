@@ -1,3 +1,4 @@
+{%- from 'includes/agents.jinja' import skill with context -%}
 # 0001 — Registrar decisões de arquitetura
 
 **Status:** Accepted
@@ -7,7 +8,7 @@ Decisões difíceis de reverter precisam de contexto preservado para pessoas e a
 
 ## Decisão
 Usamos ADRs curtos (template em `.agents/skills/plan/assets/adr-template.md`), numerados,
-imutáveis após aceitos (substituídos por um novo ADR quando mudam). A skill `$plan` cria ADRs.
+imutáveis após aceitos (substituídos por um novo ADR quando mudam). A skill `{{ skill('plan') }}` cria ADRs.
 
 ## Consequências
 Agentes leem `docs/adr/` antes de propor desenho; revisões citam ADRs em vez de reabrir debates.

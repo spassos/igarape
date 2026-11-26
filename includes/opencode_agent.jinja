@@ -4,7 +4,7 @@
 description: {{ role.description | to_json(ensure_ascii=False) }}
 mode: subagent
 permissions:
-  # Last matching rule wins. Subagents do not launch other subagents (as Codex max_depth = 1).
+  # Last matching rule wins. Subagents do not launch other subagents.
   - action: subagent
     resource: "*"
     effect: deny

@@ -1,32 +1,34 @@
+{%- from 'includes/agents.jinja' import skill with context -%}
 # Ways of Working — SDLC agêntico
 
-Para uma correção local com resultado definido, comece em `$implement`. Use o pedido e o teste
-de regressão como referência de `$review` e valide com `make check`.
+Para uma correção local com resultado definido, comece em `{{ skill('implement') }}`. Use o pedido e o teste
+de regressão como referência de `{{ skill('review') }}` e valide com `make check`.
 
-Mudanças de contrato público, migrações e decisões arquiteturais passam por `$specify` e
-`$plan` com aprovação. Comece com `$discovery` quando o problema ou o resultado de produto
+Mudanças de contrato público, migrações e decisões arquiteturais passam por `{{ skill('specify') }}` e
+`{{ skill('plan') }}` com aprovação. Comece com `{{ skill('discovery') }}` quando o problema ou o resultado de produto
 precisar ser definido. O fluxo completo abaixo mostra os artefatos e as verificações de cada fase.
 
 ```mermaid
 flowchart LR
-  D[1. Discovery<br/>$discovery<br/>docs/product] -->|PRD aprovado| S[2. Specify<br/>$specify<br/>spec.md]
-  S -->|ACs aprovados| P[3. Plan<br/>$plan + architect<br/>plan.md / ADR]
-  P -->|plano aprovado| I[4. Implement<br/>$implement + test_engineer<br/>TDD]
-  I -->|make check verde| R[5. Review<br/>$review + reviewer + security_auditor]
-  R -->|sem bloqueios| SH[6. Ship<br/>$ship<br/>PR → CI → merge · CD opcional]
+  D[1. Discovery<br/>{{ skill('discovery') }}<br/>docs/product] -->|PRD aprovado| S[2. Specify<br/>{{ skill('specify') }}<br/>spec.md]
+  S -->|ACs aprovados| P[3. Plan<br/>{{ skill('plan') }} + architect<br/>plan.md / ADR]
+  P -->|plano aprovado| I[4. Implement<br/>{{ skill('implement') }} + test_engineer<br/>TDD]
+  I -->|make check verde| R[5. Review<br/>{{ skill('review') }} + reviewer + security_auditor]
+  R -->|sem bloqueios| SH[6. Ship<br/>{{ skill('ship') }}<br/>PR → CI → merge · CD opcional]
   SH -->|smoke em produção| M[Medir métricas do PRD]
   M -.aprendizado.-> D
 ```
 
 | Fase | Quem lidera | Artefato | Gate (Definition of Ready/Done) |
 |---|---|---|---|
-| Discovery | PM + Codex (`$discovery`) | `docs/product/<slug>.md` | Problema, métricas e escopo aprovados |
-| Specify | PM/Tech Lead + Codex (`$specify`) | `docs/specs/NNN-*/spec.md` | Critérios de aceite testáveis aprovados |
-| Plan | Tech Lead + `architect` (`$plan`) | `plan.md`, `docs/adr/*` | Plano e ADRs aprovados |
-| Implement | Dev + Codex (`$implement`, `$integrate`) | código + testes | `make check` verde, cada AC com teste |
-| Review | `reviewer` + `security_auditor` + humano (`$review`) | comentários no PR | Nenhum achado bloqueante |
-| Ship | CI/CD (`$ship`) | merge ou implantação | CI verde e, com CD ativo, versão e readiness verificadas |
+| Discovery | PM + agente (`{{ skill('discovery') }}`) | `docs/product/<slug>.md` | Problema, métricas e escopo aprovados |
+| Specify | PM/Tech Lead + agente (`{{ skill('specify') }}`) | `docs/specs/NNN-*/spec.md` | Critérios de aceite testáveis aprovados |
+| Plan | Tech Lead + `architect` (`{{ skill('plan') }}`) | `plan.md`, `docs/adr/*` | Plano e ADRs aprovados |
+| Implement | Dev + agente (`{{ skill('implement') }}`, `{{ skill('integrate') }}`) | código + testes | `make check` verde, cada AC com teste |
+| Review | `reviewer` + `security_auditor` + humano (`{{ skill('review') }}`) | comentários no PR | Nenhum achado bloqueante |
+| Ship | CI/CD (`{{ skill('ship') }}`) | merge ou implantação | CI verde e, com CD ativo, versão e readiness verificadas |
 
+{% if 'codex' in agents -%}
 ## Como usar com o Codex
 
 ```bash
@@ -43,6 +45,53 @@ codex exec "$review" --sandbox read-only   # não interativo (scripts/CI)
 Os subagents (`.codex/agents/`) são acionados pelas skills ou explicitamente:
 "use o subagent security_auditor para revisar o diff".
 
+{% endif -%}
+{% if 'claude' in agents -%}
+## Como usar com o Claude Code
+
+```bash
+claude                                  # interativo; aceite o diálogo de confiança da pasta
+> /discovery quero permitir que lojistas importem itens via evento
+> /specify docs/product/importacao-itens.md fatia 1
+> /plan docs/specs/002-importacao-itens/spec.md
+> /implement docs/specs/002-importacao-itens/plan.md
+> /review
+> /ship
+claude -p "/review"                     # não interativo (scripts/CI)
+```
+
+Os subagents (`.claude/agents/`, com hífen: `security-auditor`) são acionados pelas skills ou
+explicitamente: "use o subagent security-auditor para revisar o diff". `/agents` lista todos.
+
+{% endif -%}
+{% if 'copilot' in agents -%}
+## Como usar com o GitHub Copilot
+
+No VS Code, abra o Copilot Chat no modo agente e peça a skill pelo nome: "use a skill discovery:
+quero permitir que lojistas importem itens via evento", depois `specify`, `plan`, `implement`,
+`review` e `ship`, uma fase por vez. Para o agente de nuvem, atribua uma issue ao Copilot; ele
+prepara o ambiente com `.github/workflows/copilot-setup-steps.yml`. Os custom agents
+(`.github/agents/`) ficam no seletor de agentes do chat.
+
+{% endif -%}
+{% if 'opencode' in agents -%}
+## Como usar com o OpenCode
+
+```bash
+opencode                                # interativo
+> use a skill discovery: quero permitir que lojistas importem itens via evento
+> use a skill specify com docs/product/importacao-itens.md, fatia 1
+> use a skill plan com docs/specs/002-importacao-itens/spec.md
+> use a skill implement com docs/specs/002-importacao-itens/plan.md
+> use a skill review
+> use a skill ship
+opencode run "use a skill review"       # não interativo (scripts/CI)
+```
+
+Os subagents (`.opencode/agents/`) são acionados pelas skills ou explicitamente com `@`:
+"@security_auditor revise o diff".
+
+{% endif -%}
 ## Qualidade e segurança (o que `make check` e o CI garantem)
 
 | Preocupação | Ferramenta | Onde |
@@ -63,7 +112,7 @@ Os subagents (`.codex/agents/`) são acionados pelas skills ou explicitamente:
 | Segredos | gitleaks | pre-commit, CI |
 | Segurança dos workflows | zizmor, actions fixadas por SHA, permissões mínimas | CI |
 | Imagem de container | Trivy, usuário não-root, proveniência (attestation) | CI, CD |
-| Revisão | Codex review (opcional) + humano | PR |
+| Revisão | {% set reviews = [] %}{% if 'codex' in agents %}{% set _ = reviews.append('Codex review') %}{% endif %}{% if 'claude' in agents %}{% set _ = reviews.append('Claude Code review') %}{% endif %}{% if 'copilot' in agents %}{% set _ = reviews.append('Copilot code review') %}{% endif %}{% if reviews %}{{ reviews | join(', ') }} (opcional) + {% endif %}humano | PR |
 
 ## Entrega (CI/CD)
 
@@ -113,13 +162,21 @@ Configuração no GitHub:
   Sem JWKS, emissor ou audiência a aplicação falha na inicialização e o deploy faz rollback.
   Rate limiting e cotas ficam no API gateway na frente do serviço.
 - Branch protection em `main`: PR obrigatório, checks do CI obrigatórios, squash merge.
-- Opcional, review automático no PR: com Codex, segredo `OPENAI_API_KEY` + variável `CODEX_REVIEW=true`;
-  com Claude Code, segredo `ANTHROPIC_API_KEY` + variável `CLAUDE_REVIEW=true`. O Copilot tem code review nativo.
+{%- if 'codex' in agents %}
+- Opcional, review automático do Codex no PR: segredo `OPENAI_API_KEY` + variável `CODEX_REVIEW=true`.
+{%- endif %}
+{%- if 'claude' in agents %}
+- Opcional, review automático do Claude Code no PR: segredo `ANTHROPIC_API_KEY` + variável
+  `CLAUDE_REVIEW=true`.
+{%- endif %}
+{%- if 'copilot' in agents %}
+- Opcional, Copilot code review: habilite nas configurações do repositório (é nativo do GitHub).
+{%- endif %}
 
-## Configuração do Codex pelo time
+## Configuração {% if agents | length > 1 %}dos agentes{% else %}do agente{% endif %} pelo time
 
 Configure aprovações, sandbox, destinos de rede permitidos e esforço de raciocínio nas políticas
-do ambiente ou na configuração pessoal do Codex. Para instalar e auditar dependências, habilite
+do ambiente ou na configuração pessoal {% if agents | length > 1 %}de cada agente{% else %}do {{ {'claude': 'Claude Code', 'codex': 'Codex', 'copilot': 'GitHub Copilot', 'opencode': 'OpenCode'}[agents[0]] }}{% endif %}. Para instalar e auditar dependências, habilite
 acesso aos índices aprovados pelo time. MCP é opcional. Ao integrar uma ferramenta, documente
 seu propósito, os escopos mínimos, o proprietário e como provisionar credenciais nas configurações
 do ambiente. Mantenha valores secretos fora do repositório.

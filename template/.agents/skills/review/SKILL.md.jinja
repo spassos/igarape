@@ -2,7 +2,7 @@
 name: review
 description: Review the current change against the request or approved spec, conventions, security and Definition of Done, then fix blocking findings. Use for "review", "revisão", "code review", "security review", or before opening/merging a PR.
 ---
-
+{% from 'includes/agents.jinja' import skill with context %}
 # Review
 
 1. Run `make check` and investigate failures before handing off.
@@ -24,4 +24,4 @@ description: Review the current change against the request or approved spec, con
    - [ ] Clean code: small functions, clear names, no dead/commented code, no needless abstraction.
    - [ ] Docs updated (spec contracts, ADRs, README/AGENTS.md if commands changed).
 4. Fix every **Blocking** finding (re-run `make check`); answer suggestions explicitly (fix or why not).
-5. Next: `$ship`.
+5. Next: `{{ skill('ship') }}`.

@@ -82,7 +82,8 @@ runs the API on your machine; `make dev DOCKER=0` uses services you already run.
 environment stays separate: keep it active when you run `make`, because `uv` comes from it, and
 the project's tools never run in it. `igarape new` prints these next steps for the chosen profile.
 
-Use `--agent` to select an adapter. Codex is the default.
+Use `--agent` to choose your coding agent (repeatable); only its files are generated. Without it,
+`igarape new` asks at a terminal and configures Codex otherwise.
 Then open the directory with your coding agent. It reads `AGENTS.md` first.
 
 ## How it works

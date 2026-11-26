@@ -21,6 +21,8 @@ from copier.errors import CopierError
 TEMPLATE = "https://github.com/spassos/igarape.git"
 AGENTS = ("claude", "codex", "copilot", "opencode")
 INITIAL_COMMIT = "chore: initial scaffold from igarape"
+AGENT_NAMES = {"claude": "Claude Code", "codex": "Codex", "copilot": "GitHub Copilot", "opencode": "OpenCode"}
+DEFAULT_AGENT = "codex"
 # How to open the project with each agent, for the final hint.
 OPEN_WITH = {
     "claude": "run `claude`",
@@ -60,6 +62,34 @@ def run_tool(command: list[str], cwd: Path, verbose: bool) -> None:
     if result.returncode:
         print(f"\n{result.stdout.rstrip()}", file=sys.stderr)
         raise subprocess.CalledProcessError(result.returncode, command)
+
+
+def choose_agents() -> list[str]:
+    """Ask which coding agents to configure; only their files are generated."""
+    print("Which coding agent will you use? Only its files are generated.", file=sys.stderr)
+    for number, agent in enumerate(AGENTS, 1):
+        print(f"  {number}. {AGENT_NAMES[agent]}", file=sys.stderr)
+    default = AGENTS.index(DEFAULT_AGENT) + 1
+    while True:
+        print(f"Number, or several separated by commas [{default}]: ", end="", file=sys.stderr, flush=True)
+        answer = input().replace(",", " ").split() or [str(default)]
+        if all(item.isdigit() and 1 <= int(item) <= len(AGENTS) for item in answer):
+            return sorted({AGENTS[int(item) - 1] for item in answer})
+        print(f"Choose numbers from 1 to {len(AGENTS)}.", file=sys.stderr)
+
+
+def select_agents(requested: list[str] | None) -> list[str]:
+    """Agents from --agent; otherwise ask a person at a terminal, or use the default and say so."""
+    if requested:
+        return sorted(set(requested))
+    if sys.stdin.isatty() and sys.stderr.isatty():
+        return choose_agents()
+    print(
+        f"igarape: no --agent given, configuring {AGENT_NAMES[DEFAULT_AGENT]} only "
+        f"(choose with --agent {'|'.join(AGENTS)}, repeatable).",
+        file=sys.stderr,
+    )
+    return [DEFAULT_AGENT]
 
 
 def services(answers: dict[str, object]) -> list[str]:
@@ -182,7 +212,10 @@ def build_parser() -> tuple[argparse.ArgumentParser, argparse.ArgumentParser]:
         action="append",
         choices=AGENTS,
         metavar="AGENT",
-        help=f"coding agent to configure (repeatable; choices: {', '.join(AGENTS)}; default: codex)",
+        help=(
+            f"coding agent to configure; only its files are generated (repeatable; choices: "
+            f"{', '.join(AGENTS)}; asked at a terminal, otherwise {DEFAULT_AGENT})"
+        ),
     )
     new.add_argument("--name", help="project display name (default: directory name)")
     new.add_argument("--description", help="one-line service description")
@@ -217,6 +250,13 @@ def main() -> int:
     servers = dict(args.mcp)
     if len(servers) != len(args.mcp):
         parser.error("each MCP server must have a unique name")
+    if path.exists() or path.is_symlink():
+        parser.error("destination already exists; choose a new directory")
+    try:
+        agents = select_agents(args.agent)
+    except (EOFError, KeyboardInterrupt):
+        print("\nigarape: cancelled", file=sys.stderr)
+        return 1
     answers = {
         "project_name": args.name if args.name is not None else path.name,
         "project_slug": slug,
@@ -224,7 +264,7 @@ def main() -> int:
         "use_redis": args.redis,
         "event_broker": args.broker,
         "mcp_servers": servers,
-        "agents": sorted(set(args.agent or ["codex"])),
+        "agents": agents,
     }
     for key, value in (
         ("description", args.description),
@@ -284,5 +324,5 @@ def main() -> int:
             file=sys.stderr,
         )
 
-    print(summary(path, answers, sorted(set(args.agent or ["codex"]))))
+    print(summary(path, answers, agents))
     return 0

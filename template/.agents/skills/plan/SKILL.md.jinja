@@ -2,7 +2,7 @@
 name: plan
 description: Technical design and task breakdown for an approved spec — writes docs/specs/NNN-slug/plan.md and ADRs in docs/adr/ for hard-to-reverse decisions. Use for "plan", "design", "arquitetura", "ADR", "quebrar em tarefas" after a spec is approved.
 ---
-
+{% from 'includes/agents.jinja' import skill with context %}
 # Plan → plan.md (+ ADRs)
 
 1. Read the approved `spec.md`, `AGENTS.md`, `docs/conventions.md`, existing `docs/adr/` and the
@@ -19,4 +19,4 @@ description: Technical design and task breakdown for an approved spec — writes
    - Tasks: small (≤ ~2h), each leaves `make check` green, ordered so main stays releasable.
 3. Decision that is costly to reverse (new datastore, broker, library, pattern, public contract)?
    Write `docs/adr/NNNN-<slug>.md` from `assets/adr-template.md` (status Proposed).
-4. Ask the human to approve the plan (and ADRs → Accepted). Next: `$implement` task by task.
+4. Ask the human to approve the plan (and ADRs → Accepted). Next: `{{ skill('implement') }}` task by task.

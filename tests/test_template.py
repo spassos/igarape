@@ -293,3 +293,40 @@ def test_default_scaffold_runs_without_docker(tmp_path: Path) -> None:
             except subprocess.TimeoutExpired:
                 os.killpg(server.pid, signal.SIGKILL)
                 server.wait()
+
+
+AGENT_WORDS = {
+    "claude": r"claude",
+    "codex": r"codex",
+    "copilot": r"copilot",
+    "opencode": r"opencode",
+}
+SKILL_SYNTAX = {
+    "codex": "`$implement`",
+    "claude": "`/implement`",
+    "copilot": "`implement`",
+    "opencode": "`implement`",
+}
+
+
+@pytest.mark.parametrize("agent", sorted(AGENT_WORDS))
+def test_single_agent_project_mentions_no_other_agent(tmp_path: Path, agent: str) -> None:
+    project = render(tmp_path / agent, {"agents": [agent], "use_postgres": True, "event_broker": "kafka"})
+    others = re.compile("|".join(word for name, word in AGENT_WORDS.items() if name != agent), re.IGNORECASE)
+    leaks = [
+        f"{path.relative_to(project)}: {match[0]}"
+        for path in project.rglob("*")
+        if path.is_file() and not path.is_symlink()
+        for match in [others.search(f"{path.relative_to(project)}\n{path.read_text(errors='ignore')}")]
+        if match
+    ]
+    assert leaks == []
+    # Skills are referenced with the selected agent's own syntax.
+    for doc in ("AGENTS.md", "docs/ways-of-working.md", ".agents/skills/review/SKILL.md"):
+        text = (project / doc).read_text()
+        assert "{{" not in text and "{%" not in text
+    assert SKILL_SYNTAX[agent] in (project / "AGENTS.md").read_text()
+    if agent != "codex":
+        assert "$implement" not in (project / "AGENTS.md").read_text()
+    review = (project / ".agents/skills/review/SKILL.md").read_text()
+    assert review.startswith("---\nname: review\n") and "\n---\n\n# Review" in review
