@@ -15,12 +15,12 @@ description: Scaffold and verify a new Python service repository with the igarap
    ```
    Pass requested metadata via `--description`, `--author` and `--python`, agents via `--agent`
    (repeatable), integrations via `--postgres`, `--redis` and `--broker`, and selected HTTPS
-   endpoints via `--mcp NAME=URL`. The CLI prepares the new Git repository and lockfile. Point it
-   at a new directory.
+   endpoints via `--mcp NAME=URL`. The CLI prepares the lockfile and the Git repository with an
+   initial commit, and prints the next steps for the profile. Point it at a new directory.
 3. In the generated repository, run `make bootstrap` and `make check`. Integration profiles
    require a running Docker daemon for their tests. If a step fails, investigate the environment
    and dependencies before attributing the failure to the template.
-4. Once validation passes, create the initial local commit:
-   `git add -A && git commit -m "chore: scaffold with igarape"`.
-5. Report the generated profile, the checks run, and how to start the app. The in-memory profile
-   starts with `make run`. For infrastructure profiles, follow the generated README.
+4. If the CLI reported that the initial commit was skipped, fix the Git error it printed and
+   commit with `git add -A && git commit -m "chore: initial scaffold from igarape"`.
+5. Report the generated profile, the checks run, and how to start the app: `make dev` in every
+   profile (it starts only the chosen infrastructure in Docker; `DOCKER=0` uses existing services).

@@ -1,3 +1,4 @@
+{%- from 'includes/agents.jinja' import skill with context -%}
 ## O quê e por quê
 <!-- Uma ou duas frases. -->
 
@@ -15,7 +16,7 @@
 - [ ] Migrações, se houver, reversíveis ou com expand/contract
 - [ ] Sem segredos/PII em código, logs ou fixtures
 - [ ] Docs/ADRs atualizados
-- [ ] `$review` executado sem bloqueios
+- [ ] `{{ skill('review') }}` executado sem bloqueios
 
 ## Riscos e rollout
 <!-- Feature flag? Ordem de deploy? Plano de rollback? -->

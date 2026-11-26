@@ -2,7 +2,7 @@
 name: specify
 description: Write a testable feature spec (acceptance criteria, API/event contracts, non-functional requirements) in docs/specs/NNN-slug/spec.md from an approved PRD or a clear request. Use for "spec", "especificação", "critérios de aceite", "user story", or when a public contract, migration or architectural decision needs an approved spec.
 ---
-
+{% from 'includes/agents.jinja' import skill with context %}
 # Specify → spec.md
 
 1. Find the source: an approved PRD in `docs/product/` or an explicit request. If the request is
@@ -21,4 +21,4 @@ description: Write a testable feature spec (acceptance criteria, API/event contr
    resource (scope per route, who may read/change each object), data exposure, limits (field
    sizes, max page size, gateway rate limits) and outbound calls. Every `/v1` route gets `401`,
    `403` and, for owned resources, another-owner `404` acceptance criteria.
-6. Ask the human to approve. Set `Status: Approved`. Next: `$plan`.
+6. Ask the human to approve. Set `Status: Approved`. Next: `{{ skill('plan') }}`.

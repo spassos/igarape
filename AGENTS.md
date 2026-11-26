@@ -11,6 +11,8 @@ and OpenCode (`--agent`, repeatable).
   (`architect`, `test_engineer`, `reviewer`, `security_auditor`). Agent-specific files import it;
   never copy role text into an agent's files.
 - `includes/opencode_agent.jinja` — macro that renders a role as an OpenCode V2 agent file.
+- `includes/agents.jinja` — `skill(name)` macro: shared docs reference skills in the selected agent's
+  syntax (`$name` with Codex, `/name` with Claude Code only, plain name otherwise).
 - `.agents/skills/new-service/` — skill that scaffolds a new service (`$new-service`).
 - `tests/` — `uv run pytest` renders every scenario and checks the layout; `-m smoke` runs the CLI
   wheel and exercises the default API over HTTP; `-m slow` runs `make check` in each generated
@@ -18,7 +20,8 @@ and OpenCode (`--agent`, repeatable).
 
 ## Rules when changing the template
 - Shared guidance lives once: `AGENTS.md`, `.agents/skills/` and `includes/roles.jinja`. An agent
-  adapter only adds what that agent's format requires, and only when the agent is selected.
+  adapter only adds what that agent's format requires, and only when the agent is selected. A
+  project generated for one agent never mentions the others (tested per agent).
 - Generated code must pass its own gates for **every** scenario: `uv run pytest -m slow`.
   Watch Jinja whitespace (`{%-`): ruff format/isort failures usually come from it.
 - Keep generated projects lean: prefer standard library and already-chosen libraries

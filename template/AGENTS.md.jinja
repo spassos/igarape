@@ -1,3 +1,4 @@
+{%- from 'includes/agents.jinja' import skill with context -%}
 # AGENTS.md — {{ project_name }}
 
 {{ description }}. Python {{ python_version }} · FastAPI · hexagonal architecture · uv.
@@ -7,13 +8,13 @@ Read this file before every task. Details live in `docs/`; do not duplicate them
 
 | Goal | Command |
 |---|---|
-| Initialize Git and install dependencies | `make bootstrap` |
+| Install dependencies into `.venv` and create `.env` (dev secret) | `make bootstrap` |
 | Install dependencies and Git hooks | `make setup` |
 | Fast loop (no Docker): unit, property, API, security, contract | `make test-unit` |
 | Auto-fix style | `make fmt` |
 | **Definition of Done gate** | `make check` (lint, mypy strict, import-linter, pip-audit, full tests + coverage ≥ {{ coverage_threshold }}%) |
 | Local bearer token (local/test only) | `make token sub=alice scopes="items:read items:write"` |
-| Run API locally | {% if use_postgres or use_redis or event_broker != 'none' %}`make up` (all in Docker) or start infrastructure first, then `make run`{% else %}`make run` (in memory, without Docker){% endif %} |
+| Run API locally (long-running: start it in the background, stop it when done; tests do not need it) | `make dev`{% if use_postgres or use_redis or event_broker != 'none' %} (infrastructure in Docker, API on the host; `DOCKER=0` uses the URLs in `.env`){% else %} (in memory, without Docker){% endif %} |
 {%- if event_broker != 'none' %}
 | Run event consumer | `make worker` |
 {%- endif %}
@@ -22,26 +23,32 @@ Read this file before every task. Details live in `docs/`; do not duplicate them
 {%- endif %}
 
 Always use `uv` (`uv add <pkg>`, `uv add --dev <pkg>`); never `pip install`. Never edit `uv.lock` by hand.
+Run Python tools through `make` or `uv run` (`uv run pytest ...`): the project's `.venv` is the only
+environment, so do not rely on an activated virtualenv.
 
 ## Choose the workflow
 
-Skills are written as `$skill` (Codex syntax). In Claude Code run `/skill`; in GitHub Copilot and
-OpenCode ask for the skill by name. All of them load the same files in `.agents/skills/`.
+{%- set by_name = agents | select('in', ['copilot', 'opencode']) | map('replace', 'copilot', 'GitHub Copilot') | map('replace', 'opencode', 'OpenCode') | list %}
+Skills live in `.agents/skills/`.
+{%- if 'codex' in agents %} They are written here as `$skill` (Codex syntax){% if 'claude' in agents %}; in Claude Code run `/skill`{% endif %}{% if by_name %}; in {{ by_name | join(' and ') }} ask for the skill by name{% endif %}.
+{%- elif 'claude' in agents %} They are written here as `/skill` commands{% if by_name %}; in {{ by_name | join(' and ') }} ask for the skill by name{% endif %}.
+{%- else %} They are referred to here by name (e.g. `implement`): ask for the skill by name.
+{%- endif %}
 
-- For a clearly requested local fix with no public contract, migration or architectural change, start with `$implement`. Add a regression test and run `make check`. Use the request and the test as the review reference.
-- For a change to a public API, event or data contract, a migration, or an architectural decision, use `$specify` and `$plan` and get the resulting spec and plan approved before implementation.
-- Use `$discovery` when the problem or desired product outcome needs definition. Clarify ambiguous requirements before writing code.
+- For a clearly requested local fix with no public contract, migration or architectural change, start with `{{ skill('implement') }}`. Add a regression test and run `make check`. Use the request and the test as the review reference.
+- For a change to a public API, event or data contract, a migration, or an architectural decision, use `{{ skill('specify') }}` and `{{ skill('plan') }}` and get the resulting spec and plan approved before implementation.
+- Use `{{ skill('discovery') }}` when the problem or desired product outcome needs definition. Clarify ambiguous requirements before writing code.
 
 ### Planned changes
 
 | Phase | Skill | Output | Gate |
 |---|---|---|---|
-| 1. Discovery | `$discovery` | `docs/product/<slug>.md` (PRD) | Human approves problem & metrics |
-| 2. Specify | `$specify` | `docs/specs/NNN-<slug>/spec.md` | Human approves acceptance criteria |
-| 3. Plan | `$plan` | `docs/specs/NNN-<slug>/plan.md` (+ ADR if needed) | Human approves plan |
-| 4. Implement | `$implement` (`$integrate` for new I/O) | Code + tests, one task at a time | `make check` green |
-| 5. Review | `$review` | Review report, fixes | No blocking findings |
-| 6. Ship | `$ship` | Merge with green CI; follow enabled delivery jobs | With CD enabled, verify the deployed version and readiness |
+| 1. Discovery | `{{ skill('discovery') }}` | `docs/product/<slug>.md` (PRD) | Human approves problem & metrics |
+| 2. Specify | `{{ skill('specify') }}` | `docs/specs/NNN-<slug>/spec.md` | Human approves acceptance criteria |
+| 3. Plan | `{{ skill('plan') }}` | `docs/specs/NNN-<slug>/plan.md` (+ ADR if needed) | Human approves plan |
+| 4. Implement | `{{ skill('implement') }}` (`{{ skill('integrate') }}` for new I/O) | Code + tests, one task at a time | `make check` green |
+| 5. Review | `{{ skill('review') }}` | Review report, fixes | No blocking findings |
+| 6. Ship | `{{ skill('ship') }}` | Merge with green CI; follow enabled delivery jobs | With CD enabled, verify the deployed version and readiness |
 
 Subagent roles{% if 'codex' in agents %} (Codex: `.codex/agents/`){% endif %}{% if 'claude' in agents %} (Claude Code: `.claude/agents/`, hyphenated names){% endif %}{% if 'copilot' in agents %} (Copilot: `.github/agents/`){% endif %}{% if 'opencode' in agents %} (OpenCode: `.opencode/agents/`){% endif %} include `architect` for design, `test_engineer` for tests,
 `reviewer` for correctness, and `security_auditor` for security. Use them when the task benefits
@@ -56,7 +63,7 @@ container.py is the ONLY place that chooses adapters (composition root)
 ```
 
 - `domain/` and `application/` import no framework (`fastapi`, `pydantic`, `sqlalchemy`, `redis`, `httpx`, `faststream`, `structlog`).
-- New external dependency = new **port** (Protocol) in `application/ports.py` + adapter + in-memory fake + integration test. See `$integrate`.
+- New external dependency = new **port** (Protocol) in `application/ports.py` + adapter + in-memory fake + integration test. See `{{ skill('integrate') }}`.
 - Transport schemas (pydantic) live in `entrypoints/`; domain models are dataclasses.
 
 ## Conventions (full list: `docs/conventions.md`)

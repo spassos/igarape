@@ -17,6 +17,9 @@ from {{ package_name }}.container import Container, build_token_verifier
 from {{ package_name }}.entrypoints.http.app import create_app
 from tests.tokens import AUTH_SECRET, DEFAULT_SCOPES, claims, sign_hs256
 
+# Tests use explicit settings only, never the developer's .env (it holds a dev secret).
+Settings.model_config["env_file"] = None
+
 
 @pytest.fixture
 def anyio_backend() -> str:

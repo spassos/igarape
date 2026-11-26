@@ -3,10 +3,15 @@
 import argparse
 import importlib.metadata
 import keyword
+import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
+import time
+import warnings
+from collections.abc import Callable
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -16,6 +21,145 @@ from copier.errors import CopierError
 TEMPLATE = "https://github.com/spassos/igarape.git"
 AGENTS = ("claude", "codex", "copilot", "opencode")
 INITIAL_COMMIT = "chore: initial scaffold from igarape"
+AGENT_NAMES = {"claude": "Claude Code", "codex": "Codex", "copilot": "GitHub Copilot", "opencode": "OpenCode"}
+DEFAULT_AGENT = "codex"
+# How to open the project with each agent, for the final hint.
+OPEN_WITH = {
+    "claude": "run `claude`",
+    "codex": "run `codex`",
+    "copilot": "open it in VS Code with Copilot agent mode",
+    "opencode": "run `opencode`",
+}
+
+
+def step[T](label: str, action: Callable[[], T]) -> T:
+    """Run one generation step, reporting it on stderr so stdout keeps only the summary."""
+    print(f"  {label} ...", end=" ", file=sys.stderr, flush=True)
+    started = time.monotonic()
+    try:
+        result = action()
+    except BaseException:
+        print("failed", file=sys.stderr, flush=True)
+        raise
+    # A tool that reports failure without raising (the initial commit) is skipped, not done.
+    outcome = "skipped" if isinstance(result, subprocess.CompletedProcess) and result.returncode else "done"
+    print(f"{outcome} ({time.monotonic() - started:.1f}s)", file=sys.stderr, flush=True)
+    return result
+
+
+def run_tool(command: list[str], cwd: Path, verbose: bool) -> None:
+    """Run a helper tool quietly, showing its output only when it fails or with --verbose."""
+    if verbose:
+        subprocess.run(command, cwd=cwd, check=True)
+        return
+    result = subprocess.run(
+        command,
+        check=False,
+        cwd=cwd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        errors="replace",
+    )
+    if result.returncode:
+        print(f"\n{result.stdout.rstrip()}", file=sys.stderr)
+        raise subprocess.CalledProcessError(result.returncode, command)
+
+
+def choose_agents() -> list[str]:
+    """Ask which coding agents to configure; only their files are generated."""
+    print("Which coding agent will you use? Only its files are generated.", file=sys.stderr)
+    for number, agent in enumerate(AGENTS, 1):
+        print(f"  {number}. {AGENT_NAMES[agent]}", file=sys.stderr)
+    default = AGENTS.index(DEFAULT_AGENT) + 1
+    while True:
+        print(f"Number, or several separated by commas [{default}]: ", end="", file=sys.stderr, flush=True)
+        answer = input().replace(",", " ").split() or [str(default)]
+        if all(item.isdigit() and 1 <= int(item) <= len(AGENTS) for item in answer):
+            return sorted({AGENTS[int(item) - 1] for item in answer})
+        print(f"Choose numbers from 1 to {len(AGENTS)}.", file=sys.stderr)
+
+
+def select_agents(requested: list[str] | None) -> list[str]:
+    """Agents from --agent; otherwise ask a person at a terminal, or use the default and say so."""
+    if requested:
+        return sorted(set(requested))
+    if sys.stdin.isatty() and sys.stderr.isatty():
+        return choose_agents()
+    print(
+        f"igarape: no --agent given, configuring {AGENT_NAMES[DEFAULT_AGENT]} only "
+        f"(choose with --agent {'|'.join(AGENTS)}, repeatable).",
+        file=sys.stderr,
+    )
+    return [DEFAULT_AGENT]
+
+
+def services(answers: dict[str, object]) -> list[str]:
+    """Infrastructure the generated project starts in Docker."""
+    chosen = ["PostgreSQL"] if answers["use_postgres"] else []
+    chosen += ["Redis"] if answers["use_redis"] else []
+    broker = {"kafka": "Kafka", "rabbit": "RabbitMQ"}.get(str(answers["event_broker"]))
+    return chosen + ([broker] if broker else [])
+
+
+def environment_notes(infra: list[str]) -> list[str]:
+    """Explain how the generated project's tooling relates to the environment igarape runs in."""
+    notes = []
+    uv = shutil.which("uv")
+    active = os.environ.get("VIRTUAL_ENV")
+    if uv is None:
+        notes.append(
+            "uv is not on your PATH and the make targets need it: install it with "
+            "`python -m pip install uv` or see https://docs.astral.sh/uv/."
+        )
+    elif active and Path(uv).absolute().is_relative_to(Path(active).absolute()):
+        notes.append(
+            f"uv comes from the active virtualenv ({active}): keep it active when you run make, "
+            "or install uv for your user (`pipx install uv`)."
+        )
+    if active:
+        notes.append(
+            "The project has its own environment (.venv, created by `make dev`) and make targets use "
+            "it even with this virtualenv active. Run tools with `uv run ...`, not bare python or pytest."
+        )
+    if infra and shutil.which("docker") is None:
+        notes.append(
+            f"Docker was not found. `make dev` starts {', '.join(infra)} with it; to use services "
+            "you already run, set their URLs in .env and run `make dev DOCKER=0`."
+        )
+    return notes
+
+
+def summary(path: Path, answers: dict[str, object], agents: list[str]) -> str:
+    """Next steps for the generated project, shown on stdout."""
+    infra = services(answers)
+    try:
+        where = os.path.relpath(path)
+    except ValueError:
+        where = str(path)
+    if where.startswith(".."):
+        where = str(path)
+    if infra:
+        dev = f"{', '.join(infra)} in Docker + API with reload at http://127.0.0.1:8000/docs"
+    else:
+        dev = "API with reload at http://127.0.0.1:8000/docs (in memory, no Docker)"
+    lines = [
+        f"Created {path}",
+        "",
+        "Next steps:",
+        f"  cd {where}",
+        f"  make dev         # {dev}",
+        "  make token       # bearer token for the /v1 routes",
+        "  make test-unit   # fast tests, no Docker",
+        "  make help        # every command",
+        "  (the first `make dev` installs dependencies into .venv and creates .env)",
+        "",
+        "Coding agent: "
+        + "; ".join(OPEN_WITH[agent] for agent in agents)
+        + " in that directory. Agents read AGENTS.md first.",
+    ]
+    lines += [f"Note: {note}" for note in environment_notes(infra)]
+    return "\n".join(lines)
 
 
 def initial_commit(project: Path) -> subprocess.CompletedProcess[str]:
@@ -70,7 +214,10 @@ def build_parser() -> tuple[argparse.ArgumentParser, argparse.ArgumentParser]:
         action="append",
         choices=AGENTS,
         metavar="AGENT",
-        help=f"coding agent to configure (repeatable; choices: {', '.join(AGENTS)}; default: codex)",
+        help=(
+            f"coding agent to configure; only its files are generated (repeatable; choices: "
+            f"{', '.join(AGENTS)}; asked at a terminal, otherwise {DEFAULT_AGENT})"
+        ),
     )
     new.add_argument("--name", help="project display name (default: directory name)")
     new.add_argument("--description", help="one-line service description")
@@ -91,6 +238,7 @@ def build_parser() -> tuple[argparse.ArgumentParser, argparse.ArgumentParser]:
     new.add_argument(
         "--ref", help="template Git revision (default: main upstream, HEAD for a local checkout)"
     )
+    new.add_argument("--verbose", action="store_true", help="show the output of Copier and uv")
     return parser, new
 
 
@@ -104,6 +252,13 @@ def main() -> int:
     servers = dict(args.mcp)
     if len(servers) != len(args.mcp):
         parser.error("each MCP server must have a unique name")
+    if path.exists() or path.is_symlink():
+        parser.error("destination already exists; choose a new directory")
+    try:
+        agents = select_agents(args.agent)
+    except (EOFError, KeyboardInterrupt):
+        print("\nigarape: cancelled", file=sys.stderr)
+        return 1
     answers = {
         "project_name": args.name if args.name is not None else path.name,
         "project_slug": slug,
@@ -111,7 +266,7 @@ def main() -> int:
         "use_redis": args.redis,
         "event_broker": args.broker,
         "mcp_servers": servers,
-        "agents": sorted(set(args.agent or ["codex"])),
+        "agents": agents,
     }
     for key, value in (
         ("description", args.description),
@@ -127,12 +282,33 @@ def main() -> int:
         if path.exists() or path.is_symlink():
             parser.error("destination already exists; choose a new directory")
         path.parent.mkdir(parents=True, exist_ok=True)
+        profile = ", ".join(services(answers)) or "in memory"
+        print(
+            f"igarape: creating {path.name} ({profile}; agents: {', '.join(answers['agents'])})",
+            file=sys.stderr,
+        )
         with tempfile.TemporaryDirectory(dir=path.parent) as temp:
             project = Path(temp) / "project"
-            run_copy(source, project, vcs_ref=revision, data=answers, defaults=True, unsafe=False, quiet=True)
-            subprocess.run([sys.executable, "-P", "-m", "uv", "lock"], cwd=project, check=True)
+            with warnings.catch_warnings():
+                # Copier warns about uncommitted changes in a local template checkout; --verbose shows it.
+                if not args.verbose:
+                    warnings.simplefilter("ignore")
+                step(
+                    f"Rendering the template from {source if args.template else 'GitHub'}",
+                    lambda: run_copy(
+                        source,
+                        project,
+                        vcs_ref=revision,
+                        data=answers,
+                        defaults=True,
+                        unsafe=False,
+                        quiet=not args.verbose,
+                    ),
+                )
+            uv = [sys.executable, "-P", "-m", "uv", "lock"]
+            step("Locking dependencies (uv lock)", lambda: run_tool(uv, project, args.verbose))
             subprocess.run(["git", "init", "-q", "-b", "main"], cwd=project, check=True)
-            commit = initial_commit(project)
+            commit = step("Initial Git commit", lambda: initial_commit(project))
             project.rename(path)
     except (CopierError, OSError, ValueError, subprocess.CalledProcessError) as exc:
         print(f"igarape: {exc}", file=sys.stderr)
@@ -150,5 +326,5 @@ def main() -> int:
             file=sys.stderr,
         )
 
-    print(f"Created {path}. Open it with your coding agent; README.md has the startup and test commands.")
+    print(summary(path, answers, agents))
     return 0

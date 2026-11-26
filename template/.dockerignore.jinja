@@ -1,0 +1,33 @@
+.git
+.github
+.venv
+.agents
+{%- if 'codex' in agents %}
+.codex
+{%- endif %}
+**/__pycache__
+.*_cache
+.coverage
+.hypothesis
+coverage.xml
+.env
+docs
+tests
+{%- if 'claude' in agents %}
+.claude
+{%- endif %}
+{%- if 'opencode' in agents %}
+.opencode
+{%- endif %}
+.vscode
+{%- if 'claude' in agents %}
+CLAUDE.md
+{%- endif %}
+AGENTS.md
+{%- if 'opencode' in agents and mcp_servers %}
+opencode.json
+{%- endif %}
+{%- if 'claude' in agents and mcp_servers %}
+.mcp.json
+{%- endif %}
+.zap

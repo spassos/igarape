@@ -2,8 +2,7 @@
 
 ## Claude Code
 
-- Skills: `.claude/skills/` links to the shared `.agents/skills/`; a `$skill` mention in AGENTS.md
-  is the `/skill` command here (e.g. `/implement`).
+- Skills: `.claude/skills/` links to the shared `.agents/skills/`; run them as commands{% if 'codex' in agents %} (a `$skill` mention in AGENTS.md is `/skill` here){% endif %}, e.g. `/implement`.
 - Subagents: `.claude/agents/` (`architect`, `test-engineer`, `reviewer`, `security-auditor`): the
   subagent roles of AGENTS.md, with hyphens instead of underscores.
 - Project permissions live in `.claude/settings.json`; personal overrides go in

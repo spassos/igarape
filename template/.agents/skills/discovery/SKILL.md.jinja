@@ -2,7 +2,7 @@
 name: discovery
 description: Product discovery — turn an idea, problem or request into an approved PRD in docs/product/. Use when someone describes a new product, feature idea, problem or opportunity ("discovery", "PRD", "nova funcionalidade", "ideia", "problema") and no PRD exists yet.
 ---
-
+{% from 'includes/agents.jinja' import skill with context %}
 # Discovery → PRD
 
 Goal: agree on **the problem, for whom, and how we will know it worked** before any solution.
@@ -16,7 +16,7 @@ Goal: agree on **the problem, for whom, and how we will know it worked** before 
 3. Write `docs/product/<kebab-slug>.md` from `assets/prd-template.md`. Keep it to ~1 page.
    Mark unknowns as `> ❓ Open question:` instead of inventing answers.
 4. List risks (value, usability, feasibility, viability) and the cheapest way to de-risk each.
-5. Ask the human to approve. Record `Status: Approved` + date. Only then suggest `$specify`
+5. Ask the human to approve. Record `Status: Approved` + date. Only then suggest `{{ skill('specify') }}`
    (one spec per independently shippable slice — propose the slices).
 
 Do not design the solution or write code in this phase.

@@ -1,5 +1,5 @@
-# Local environment: `make up` (app + infrastructure) / `make down`.
-# For the fast dev loop run only the infra (`docker compose up -d --wait{% if use_postgres %} postgres{% endif %}{% if use_redis %} redis{% endif %}{% if event_broker != 'none' %} broker{% endif %}`) and `make run`.
+# Daily development: `make dev` starts only the infrastructure here and runs the API locally.
+# `make up` also runs the production image (slower: it builds the image); `make down` stops all.
 x-app: &app
   build: .
   environment:
