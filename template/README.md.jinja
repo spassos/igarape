@@ -41,6 +41,22 @@ para feedback rápido (unit, propriedades, API, segurança e contrato OpenAPI) e
 lint, tipos, arquitetura, auditoria, testes e cobertura. Para instalar os hooks locais, use
 `make setup`. `make help` lista todos os comandos.
 
+### Problemas comuns
+
+{% if use_postgres or use_redis or event_broker != 'none' -%}
+- **Docker Compose ausente (comum com Colima via Homebrew).** O `make dev` avisa quando nem
+  `docker compose` nem `docker-compose` funcionam. Instale com `brew install docker-compose` e
+  adicione `"cliPluginsExtraDirs": ["/opt/homebrew/lib/docker/cli-plugins"]` ao
+  `~/.docker/config.json` (em Mac Intel, `/usr/local/lib/docker/cli-plugins`).
+- **Colima.** Suba com memória suficiente para a infraestrutura: `colima start --cpu 4 --memory 6`.
+  Os testes de integração usam o contexto ativo do Docker (`docker context`), então funcionam com
+  Colima, OrbStack ou Docker Desktop sem configurar `DOCKER_HOST`.
+{% endif -%}
+- **`ModuleNotFoundError` do próprio pacote no macOS.** Em pastas sincronizadas pelo iCloud
+  (`Documents`, `Desktop`) o macOS pode marcar arquivos do `.venv` como ocultos, e o Python 3.13+
+  ignora `.pth` ocultos. Os alvos do `make` e o `pytest` já encontram o código em `src/`; para
+  outros comandos, rode `make bootstrap` de novo ou mantenha o projeto fora dessas pastas.
+
 ## Autenticação
 
 As rotas de negócio ficam em `/v1` e exigem `Authorization: Bearer <JWT>` com escopo

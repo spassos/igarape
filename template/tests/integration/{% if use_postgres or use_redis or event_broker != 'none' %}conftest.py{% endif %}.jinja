@@ -1,5 +1,8 @@
 """Real infrastructure via testcontainers (session-scoped, needs Docker)."""
 
+import os
+import shutil
+import subprocess
 from collections.abc import Iterator
 {%- if use_postgres %}
 from pathlib import Path
@@ -27,6 +30,32 @@ from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 
 from {{ package_name }}.config import Settings
 from tests.tokens import AUTH_SECRET
+
+
+def use_active_docker_context() -> None:
+    """Point testcontainers at the Docker the CLI uses (Colima, OrbStack, Docker Desktop...).
+
+    testcontainers only reads ``DOCKER_HOST`` and otherwise assumes /var/run/docker.sock, which
+    Colima does not create on the host. Explicit environment variables always win.
+    """
+    host = os.environ.get("DOCKER_HOST", "")
+    docker = shutil.which("docker")
+    if not host and docker:
+        context = subprocess.run(  # noqa: S603 - fixed arguments, no user input
+            [docker, "context", "inspect", "--format", "{{ '{{' }}.Endpoints.docker.Host{{ '}}' }}"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        host = context.stdout.strip() if context.returncode == 0 else ""
+        if host.startswith("unix://") and host != "unix:///var/run/docker.sock":
+            os.environ["DOCKER_HOST"] = host
+    if ".colima" in host:
+        # Ryuk mounts the socket path inside Colima's VM, not the host path.
+        os.environ.setdefault("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE", "/var/run/docker.sock")
+
+
+use_active_docker_context()
 {%- if use_postgres %}
 
 ROOT = Path(__file__).parents[2]
