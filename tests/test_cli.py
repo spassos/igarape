@@ -140,6 +140,7 @@ def test_cli_still_succeeds_and_explains_when_git_cannot_commit(
     )
 
     assert result.returncode == 0
+    assert re.search(r"^  Initial Git commit \.\.\. skipped \(\d+\.\ds\)$", result.stderr, re.MULTILINE)
     assert "initial commit skipped" in result.stderr
     assert all(diagnostic in result.stderr for diagnostic in diagnostics)
     assert 'git commit -m "chore: initial scaffold from igarape"' in result.stderr
@@ -159,7 +160,8 @@ def test_cli_reports_steps_and_next_steps_for_the_profile(
     tmp_path: Path, flags: list[str], dev_line: str
 ) -> None:
     project = tmp_path / "orders"
-    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    env = git_env(tmp_path, "[user]\n\tname = Dev\n\temail = dev@example.invalid\n")
+    env.pop("VIRTUAL_ENV", None)
     result = subprocess.run(
         ["igarape", "new", str(project), "--template", str(ROOT), "--agent", "claude", *flags],
         cwd=tmp_path,

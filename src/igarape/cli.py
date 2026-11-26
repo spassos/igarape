@@ -41,7 +41,9 @@ def step[T](label: str, action: Callable[[], T]) -> T:
     except BaseException:
         print("failed", file=sys.stderr, flush=True)
         raise
-    print(f"done ({time.monotonic() - started:.1f}s)", file=sys.stderr, flush=True)
+    # A tool that reports failure without raising (the initial commit) is skipped, not done.
+    outcome = "skipped" if isinstance(result, subprocess.CompletedProcess) and result.returncode else "done"
+    print(f"{outcome} ({time.monotonic() - started:.1f}s)", file=sys.stderr, flush=True)
     return result
 
 
