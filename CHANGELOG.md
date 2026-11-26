@@ -5,6 +5,22 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). Security fixes are listed under **Security** with
 their advisory or CVE identifier.
 
+## [0.3.0](https://github.com/spassos/igarape/compare/v0.2.2...v0.3.0) (2026-11-26)
+
+
+### Added
+
+* generate guidance only for the selected coding agents ([b8feef0](https://github.com/spassos/igarape/commit/b8feef0e4d5af28ee8409a6c4db5bcd925e40c3e))
+* one-command local dev and agent-specific generated guidance ([5103cb8](https://github.com/spassos/igarape/commit/5103cb808bdd0b1b3f7f6c902ed5d7f45f1d9179))
+* one-command local development and clearer `igarape new` output ([d108459](https://github.com/spassos/igarape/commit/d108459da1de94c33e17836a205bbdd931b3374c))
+
+
+### Fixed
+
+* **cli:** report a skipped initial commit as skipped ([7756148](https://github.com/spassos/igarape/commit/7756148088f753df282cb4261b91a54607cd68b5))
+* **template:** keep the developer's .env out of generated tests ([771ccad](https://github.com/spassos/igarape/commit/771ccadc3a03e6a8a569644f4cc0ade9633c3955))
+* **template:** work with Colima and macOS iCloud folders out of the box ([6ead63a](https://github.com/spassos/igarape/commit/6ead63a492da96824867183a296d78d39cc4b5f1))
+
 ## [0.2.2](https://github.com/spassos/igarape/compare/v0.2.1...v0.2.2) (2026-11-25)
 
 
