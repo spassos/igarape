@@ -141,6 +141,8 @@ forbidden_modules = [
 [tool.pytest.ini_options]
 addopts = "-ra --strict-markers --strict-config"
 testpaths = ["tests"]
+# Import the project from src/ even when Python skips a hidden .pth file (macOS + iCloud folders).
+pythonpath = ["src"]
 markers = ["integration: needs Docker (testcontainers)"]
 filterwarnings = [
     "error",

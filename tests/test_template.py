@@ -1,11 +1,13 @@
 """Check the rendered layout, a live default API, and the generated projects' gates."""
 
+import ast
 import json
 import os
 import re
 import shutil
 import signal
 import subprocess
+import sys
 import time
 import tomllib
 from contextlib import suppress
@@ -148,7 +150,13 @@ def test_release_please_versions_pyproject_lockfile_and_changelog(project: Path)
 
 def make_dry_run(project: Path, *args: str) -> str:
     result = subprocess.run(
-        ["make", "-n", *args], cwd=project, env=project_env(), capture_output=True, text=True, check=True
+        # A fixed COMPOSE keeps the dry run independent of the Docker tools on this machine.
+        ["make", "-n", "COMPOSE=docker compose", *args],
+        cwd=project,
+        env=project_env(),
+        capture_output=True,
+        text=True,
+        check=True,
     )
     return result.stdout
 
@@ -179,6 +187,129 @@ def test_make_dev_starts_only_the_chosen_infrastructure(project: Path) -> None:
         assert "uvicorn --factory" in no_docker
     else:
         assert "docker" not in dev and "infra:" not in makefile
+
+
+def fake_tools(directory: Path, **scripts: str) -> dict[str, str]:
+    """PATH holding only fake executables (plus nothing else), so real Docker never interferes."""
+    directory.mkdir()
+    for name, body in scripts.items():
+        tool = directory / name.replace("_", "-")
+        tool.write_text(f"#!/bin/sh\n{body}\n")
+        tool.chmod(0o755)
+    return {**project_env(), "PATH": str(directory)}
+
+
+@pytest.mark.parametrize(
+    ("tools", "expected"),
+    [
+        # Colima from Homebrew without the Compose plugin: `docker compose` is not a command.
+        ({"docker": '[ "$1" = compose ] && exit 125; exit 0'}, "brew install docker-compose"),
+        ({"docker": '[ "$1" = info ] && exit 1; exit 0'}, "colima start"),
+        ({}, "Docker is not installed"),
+    ],
+    ids=["no-compose-plugin", "daemon-stopped", "no-docker"],
+)
+def test_make_infra_explains_what_docker_is_missing(
+    tmp_path: Path, tools: dict[str, str], expected: str
+) -> None:
+    project = render(tmp_path / "svc", SCENARIOS["postgres-rabbit"])
+    make = shutil.which("make")
+    assert make is not None
+    result = subprocess.run(
+        [make, "infra"],
+        check=False,
+        cwd=project,
+        env=fake_tools(tmp_path / "bin", **tools),
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert expected in result.stderr
+    assert "DOCKER=0" in result.stderr
+
+
+def test_make_infra_falls_back_to_standalone_docker_compose(tmp_path: Path) -> None:
+    project = render(tmp_path / "svc", SCENARIOS["postgres-rabbit"])
+    make = shutil.which("make")
+    assert make is not None
+    env = fake_tools(
+        tmp_path / "bin",
+        docker='[ "$1" = compose ] && exit 125; exit 0',
+        docker_compose='echo "standalone $*"',
+    )
+    result = subprocess.run([make, "infra"], cwd=project, env=env, capture_output=True, text=True, check=True)
+    assert "standalone up -d --wait postgres broker" in result.stdout
+
+
+def test_project_imports_from_src_without_its_pth_file(project: Path) -> None:
+    # macOS hides .venv files in iCloud-synced folders and Python 3.13+ skips hidden .pth files.
+    makefile = (project / "Makefile").read_text()
+    assert "\nexport PYTHONPATH := $(CURDIR)/src$(if $(PYTHONPATH),:$(PYTHONPATH))\n" in makefile
+    assert "chflags -R nohidden .venv" in makefile
+    pytest_options = tomllib.loads((project / "pyproject.toml").read_text())["tool"]["pytest"]["ini_options"]
+    assert pytest_options["pythonpath"] == ["src"]
+
+
+def docker_context_helper(project: Path) -> str:
+    conftest = (project / "tests/integration/conftest.py").read_text()
+    module = ast.parse(conftest)
+    (function,) = [
+        node
+        for node in module.body
+        if isinstance(node, ast.FunctionDef) and node.name == "use_active_docker_context"
+    ]
+    return "import os, shutil, subprocess\n" + (ast.get_source_segment(conftest, function) or "")
+
+
+@pytest.mark.parametrize(
+    ("context_host", "environment", "expected"),
+    [
+        (
+            "unix:///Users/dev/.colima/default/docker.sock",
+            {},
+            {
+                "DOCKER_HOST": "unix:///Users/dev/.colima/default/docker.sock",
+                "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE": "/var/run/docker.sock",
+            },
+        ),
+        (
+            "unix:///Users/dev/.docker/run/docker.sock",
+            {},
+            {"DOCKER_HOST": "unix:///Users/dev/.docker/run/docker.sock"},
+        ),
+        ("unix:///var/run/docker.sock", {}, {}),
+        (
+            "unix:///ignored.sock",
+            {"DOCKER_HOST": "unix:///Users/dev/.colima/work/docker.sock"},
+            {
+                "DOCKER_HOST": "unix:///Users/dev/.colima/work/docker.sock",
+                "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE": "/var/run/docker.sock",
+            },
+        ),
+    ],
+    ids=["colima", "docker-desktop", "default-socket", "explicit-docker-host"],
+)
+def test_integration_tests_follow_the_active_docker_context(
+    tmp_path: Path, context_host: str, environment: dict[str, str], expected: dict[str, str]
+) -> None:
+    project = render(tmp_path / "svc", SCENARIOS["postgres-rabbit"])
+    keys = ("DOCKER_HOST", "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE")
+    env = {
+        k: v
+        for k, v in fake_tools(tmp_path / "bin", docker=f'echo "{context_host}"').items()
+        if k not in keys
+    }
+    script = docker_context_helper(project) + (
+        f"\nuse_active_docker_context()\nprint({{k: os.environ[k] for k in {keys!r} if k in os.environ}})\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", script],
+        env=env | environment,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert ast.literal_eval(result.stdout) == expected
 
 
 @pytest.mark.slow

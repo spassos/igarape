@@ -6,6 +6,18 @@ UV := uv run --frozen
 APP := {{ package_name }}.entrypoints.http.app:create_app
 # Targets always use the project's own .venv (managed by uv), even when another virtualenv is active.
 unexport VIRTUAL_ENV
+# Import the project from src/ even when Python skips its .pth file: on macOS, folders synced by
+# iCloud (Documents, Desktop) can mark .venv files hidden, and Python 3.13+ ignores hidden .pth files.
+export PYTHONPATH := $(CURDIR)/src$(if $(PYTHONPATH),:$(PYTHONPATH))
+# The `docker compose` plugin, else the standalone `docker-compose` (evaluated once, when used).
+COMPOSE = $(eval COMPOSE := $(shell docker compose version >/dev/null 2>&1 && echo "docker compose" \
+	|| { command -v docker-compose >/dev/null 2>&1 && echo docker-compose; }))$(COMPOSE)
+# Explain what is missing instead of failing inside Docker with a cryptic error.
+define check_docker
+	@command -v docker >/dev/null || { echo "Docker is not installed (Docker Desktop, Colima or OrbStack).$(1)" >&2; exit 1; }
+	@docker info >/dev/null 2>&1 || { echo "Docker is installed but not running: start Docker Desktop, or run colima start --cpu 4 --memory 6.$(1)" >&2; exit 1; }
+	@test -n "$(COMPOSE)" || { echo "Docker Compose is missing. With Homebrew (Colima): brew install docker-compose, then add \"cliPluginsExtraDirs\": [\"$$(brew --prefix 2>/dev/null || echo /opt/homebrew)/lib/docker/cli-plugins\"] to ~/.docker/config.json.$(1)" >&2; exit 1; }
+endef
 {%- if use_postgres or use_redis or event_broker != 'none' %}
 # `make dev DOCKER=0` uses services you already run (URLs in .env) instead of compose.
 DOCKER ?= 1
@@ -21,6 +33,7 @@ help: ## List targets
 bootstrap: ## Install dependencies into .venv and create .env with a local dev secret
 	@test -e .git || git init -q -b main
 	uv sync --all-groups
+	@if [ "$$(uname)" = Darwin ]; then chflags -R nohidden .venv; fi
 	@test -e .env || { cp .env.example .env \
 		&& printf '\n# Local dev secret created by make bootstrap\n' >> .env \
 		&& echo "APP_AUTH_DEV_SECRET=$$($(UV) python -c 'import secrets; print(secrets.token_hex(32))')" >> .env \
@@ -34,8 +47,8 @@ dev: bootstrap{% if use_postgres or use_redis or event_broker != 'none' %} infra
 .PHONY: infra
 infra: ## Start only the infrastructure in Docker; DOCKER=0 skips it
 ifeq ($(DOCKER),1)
-	@command -v docker >/dev/null || { echo "Docker is needed for $(INFRA). Install it, or run your own services, set their URLs in .env and use DOCKER=0." >&2; exit 1; }
-	docker compose up -d --wait $(INFRA)
+	$(call check_docker, Or run your own $(INFRA) and use DOCKER=0 with their URLs in .env.)
+	$(COMPOSE) up -d --wait $(INFRA)
 else
 	@echo "DOCKER=0: using the service URLs in .env ($(INFRA) must already be running)"
 endif
@@ -106,11 +119,13 @@ token: ## Dev bearer token (secret created by make bootstrap): make token sub=al
 
 .PHONY: up
 up: ## Run the production image and its infrastructure in Docker (builds the image; slower)
-	docker compose up -d --build --wait
+	$(call check_docker)
+	$(COMPOSE) up -d --build --wait
 
 .PHONY: down
 down: ## Stop everything and drop volumes
-	docker compose down -v
+	$(call check_docker)
+	$(COMPOSE) down -v
 
 .PHONY: image
 image: ## Build the container image
