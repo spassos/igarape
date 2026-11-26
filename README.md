@@ -56,8 +56,7 @@ With [uv](https://docs.astral.sh/uv/):
 ```bash
 uvx igarape new orders-api
 cd orders-api
-make bootstrap
-make run
+make dev
 ```
 
 For pip, activate a virtual environment with Python 3.12 or newer.
@@ -73,8 +72,15 @@ If your installed version is `0.2.0`, install `uv` separately with
 igarape new orders-api
 ```
 
-Then enter `orders-api` and run `make bootstrap` and `make run`. The in-memory API listens on
+Then enter `orders-api` and run `make dev`. The in-memory API listens on
 `http://127.0.0.1:8000`.
+
+`make dev` is the one command for local work. It installs the dependencies into the project's
+own `.venv`, creates `.env` with a local dev secret (so `make token` works) and runs the API with
+reload. With `--postgres`, `--redis` or `--broker` it starts only those services in Docker and
+runs the API on your machine; `make dev DOCKER=0` uses services you already run. The pip virtual
+environment stays separate: keep it active when you run `make`, because `uv` comes from it, and
+the project's tools never run in it. `igarape new` prints these next steps for the chosen profile.
 
 Use `--agent` to select an adapter. Codex is the default.
 Then open the directory with your coding agent. It reads `AGENTS.md` first.

@@ -17,7 +17,7 @@ from {{ package_name }}.config import Settings
 def mint(settings: Settings, subject: str, scopes: str, ttl_minutes: int) -> str:
     """Return a signed token accepted by the app configured with ``settings``."""
     if settings.env not in {"local", "test"} or settings.auth_dev_secret is None:
-        raise SystemExit("Set APP_AUTH_DEV_SECRET (openssl rand -hex 32) with APP_ENV=local/test")
+        raise SystemExit("No APP_AUTH_DEV_SECRET: run `make bootstrap` to create .env")
     now = datetime.now(UTC)
     claims = {
         "sub": subject,

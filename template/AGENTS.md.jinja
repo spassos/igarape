@@ -7,13 +7,13 @@ Read this file before every task. Details live in `docs/`; do not duplicate them
 
 | Goal | Command |
 |---|---|
-| Initialize Git and install dependencies | `make bootstrap` |
+| Install dependencies into `.venv` and create `.env` (dev secret) | `make bootstrap` |
 | Install dependencies and Git hooks | `make setup` |
 | Fast loop (no Docker): unit, property, API, security, contract | `make test-unit` |
 | Auto-fix style | `make fmt` |
 | **Definition of Done gate** | `make check` (lint, mypy strict, import-linter, pip-audit, full tests + coverage ≥ {{ coverage_threshold }}%) |
 | Local bearer token (local/test only) | `make token sub=alice scopes="items:read items:write"` |
-| Run API locally | {% if use_postgres or use_redis or event_broker != 'none' %}`make up` (all in Docker) or start infrastructure first, then `make run`{% else %}`make run` (in memory, without Docker){% endif %} |
+| Run API locally (long-running: start it in the background, stop it when done; tests do not need it) | `make dev`{% if use_postgres or use_redis or event_broker != 'none' %} (infrastructure in Docker, API on the host; `DOCKER=0` uses the URLs in `.env`){% else %} (in memory, without Docker){% endif %} |
 {%- if event_broker != 'none' %}
 | Run event consumer | `make worker` |
 {%- endif %}
@@ -22,6 +22,8 @@ Read this file before every task. Details live in `docs/`; do not duplicate them
 {%- endif %}
 
 Always use `uv` (`uv add <pkg>`, `uv add --dev <pkg>`); never `pip install`. Never edit `uv.lock` by hand.
+Run Python tools through `make` or `uv run` (`uv run pytest ...`): the project's `.venv` is the only
+environment, so do not rely on an activated virtualenv.
 
 ## Choose the workflow
 

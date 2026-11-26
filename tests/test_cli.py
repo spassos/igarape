@@ -1,10 +1,14 @@
 import ast
 import os
+import re
+import shutil
 import subprocess
 import tomllib
 from pathlib import Path
 
 import pytest
+
+from igarape import cli
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -141,3 +145,64 @@ def test_cli_still_succeeds_and_explains_when_git_cannot_commit(
     assert 'git commit -m "chore: initial scaffold from igarape"' in result.stderr
     assert (project / ".git").is_dir()
     assert (project / "pyproject.toml").is_file()
+
+
+@pytest.mark.parametrize(
+    ("flags", "dev_line"),
+    [
+        ([], "API with reload at http://127.0.0.1:8000/docs (in memory, no Docker)"),
+        (["--postgres", "--redis"], "PostgreSQL, Redis in Docker + API with reload"),
+    ],
+    ids=["in-memory", "postgres-redis"],
+)
+def test_cli_reports_steps_and_next_steps_for_the_profile(
+    tmp_path: Path, flags: list[str], dev_line: str
+) -> None:
+    project = tmp_path / "orders"
+    env = {k: v for k, v in os.environ.items() if k != "VIRTUAL_ENV"}
+    result = subprocess.run(
+        ["igarape", "new", str(project), "--template", str(ROOT), "--agent", "claude", *flags],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    # Progress goes to stderr, one line per step and without tool noise; stdout is the summary.
+    steps = [line.strip() for line in result.stderr.splitlines() if line.startswith("  ")]
+    assert [line.split(" ...")[0] for line in steps] == [
+        f"Rendering the template from {ROOT}",
+        "Locking dependencies (uv lock)",
+        "Initial Git commit",
+    ]
+    assert all(re.search(r" \.\.\. done \(\d+\.\ds\)$", line) for line in steps)
+    assert "Resolved" not in result.stderr and "Warning" not in result.stderr
+    assert "  cd orders\n" in result.stdout
+    assert f"make dev         # {dev_line}" in result.stdout
+    assert "make token" in result.stdout and "run `claude`" in result.stdout
+    assert "virtualenv" not in result.stdout
+
+
+def test_cli_explains_an_active_virtualenv(tmp_path: Path) -> None:
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "bin/uv").symlink_to(shutil.which("uv") or "/usr/bin/false")
+    env = {**os.environ, "VIRTUAL_ENV": str(venv), "PATH": f"{venv / 'bin'}{os.pathsep}{os.environ['PATH']}"}
+    result = subprocess.run(
+        ["igarape", "new", str(tmp_path / "orders"), "--template", str(ROOT)],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert f"uv comes from the active virtualenv ({venv})" in result.stdout
+    assert "make targets use it even with this virtualenv active" in result.stdout
+
+
+def test_cli_points_to_uv_when_it_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("VIRTUAL_ENV", raising=False)
+    monkeypatch.setattr(cli.shutil, "which", lambda name: None)
+    notes = cli.environment_notes(["PostgreSQL"])
+    assert notes[0].startswith("uv is not on your PATH")
+    assert "make dev DOCKER=0" in notes[1]

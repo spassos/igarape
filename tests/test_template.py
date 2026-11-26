@@ -3,7 +3,6 @@
 import json
 import os
 import re
-import secrets
 import shutil
 import signal
 import subprocess
@@ -147,6 +146,41 @@ def test_release_please_versions_pyproject_lockfile_and_changelog(project: Path)
     ]
 
 
+def make_dry_run(project: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["make", "-n", *args], cwd=project, env=project_env(), capture_output=True, text=True, check=True
+    )
+    return result.stdout
+
+
+def test_make_dev_starts_only_the_chosen_infrastructure(project: Path) -> None:
+    answers = SCENARIOS[project.name]
+    infra = [
+        name
+        for name, chosen in (
+            ("postgres", answers["use_postgres"]),
+            ("redis", answers["use_redis"]),
+            ("broker", answers["event_broker"] != "none"),
+        )
+        if chosen
+    ]
+    makefile = (project / "Makefile").read_text()
+    # A virtualenv the user activated to install igarape must not leak into the project's tools.
+    assert "\nunexport VIRTUAL_ENV\n" in makefile
+    dev = make_dry_run(project, "dev")
+    assert "uv sync --all-groups" in dev and "uvicorn --factory" in dev
+    # The app image is never built for daily development; only the chosen services start.
+    assert "--build" not in dev and "docker build" not in dev
+    if infra:
+        assert f"docker compose up -d --wait {' '.join(infra)}" in dev
+        assert ("alembic upgrade head" in dev) is answers["use_postgres"]
+        no_docker = make_dry_run(project, "dev", "DOCKER=0")
+        assert "docker" not in no_docker.replace("DOCKER=0", "")
+        assert "uvicorn --factory" in no_docker
+    else:
+        assert "docker" not in dev and "infra:" not in makefile
+
+
 @pytest.mark.slow
 def test_generated_project_passes_its_own_gates(project: Path) -> None:
     if project.name not in {"minimal", "with-mcp", "all-agents"} and shutil.which("docker") is None:
@@ -213,10 +247,16 @@ def test_default_scaffold_runs_without_docker(tmp_path: Path) -> None:
     assert (project / ".git").is_dir()
     assert (project / "uv.lock").is_file()
 
+    # Follow the README with the pip virtualenv still active, as a developer would.
     env = {key: value for key, value in project_env().items() if not key.startswith("APP_")}
-    env.update(UVICORN_HOST="127.0.0.1", UVICORN_PORT="0", APP_AUTH_DEV_SECRET=secrets.token_hex(32))
+    env.update(UVICORN_HOST="127.0.0.1", UVICORN_PORT="0", VIRTUAL_ENV=str(installation))
+    bootstrap = subprocess.run(
+        ["make", "bootstrap"], cwd=project, env=env, check=True, capture_output=True, text=True
+    )
+    assert "does not match the project environment" not in bootstrap.stdout + bootstrap.stderr
+    assert re.search(r"^APP_AUTH_DEV_SECRET=[0-9a-f]{64}$", (project / ".env").read_text(), re.MULTILINE)
     token = subprocess.run(
-        ["uv", "run", "--frozen", "python", "scripts/dev_token.py", "--sub", "alice"],
+        ["make", "-s", "token", "sub=alice"],
         cwd=project,
         env=env,
         check=True,
@@ -226,7 +266,7 @@ def test_default_scaffold_runs_without_docker(tmp_path: Path) -> None:
     log = tmp_path / "api.log"
     with log.open("w") as output:
         server = subprocess.Popen(
-            ["make", "run"],
+            ["make", "dev"],
             cwd=project,
             env=env,
             stdout=output,

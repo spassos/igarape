@@ -13,24 +13,28 @@ Python {{ python_version }} · FastAPI · arquitetura hexagonal
 {% set agent_links = {'claude': '[Claude Code](https://code.claude.com)', 'codex': '[Codex CLI](https://developers.openai.com/codex)', 'copilot': '[GitHub Copilot](https://github.com/features/copilot)', 'opencode': '[OpenCode](https://opencode.ai)'} -%}
 Pré-requisitos: [uv](https://docs.astral.sh/uv/), Git, make e {% if agents | length > 1 %}pelo menos um dos agentes{% else %}o agente{% endif %} {% for a in agents %}{{ agent_links[a] }}{% if not loop.last %}, {% endif %}{% endfor %}.
 {% if use_postgres or use_redis or event_broker != 'none' -%}
-Este perfil usa Docker e Docker Compose.
-
 ```bash
-make bootstrap    # inicializa Git e resolve dependências
-make up           # app + infraestrutura em Docker
+make dev    # instala as dependências, cria o .env, sobe a infraestrutura e roda a API com reload
 ```
 
-Para rodar a API com reload, copie `.env.example` para `.env`, suba só a infraestrutura com
-`docker compose up -d --wait{% if use_postgres %} postgres{% endif %}{% if use_redis %} redis{% endif %}{% if event_broker != 'none' %} broker{% endif %}`
-{%- if use_postgres %}, execute `make migrate`{% endif %} e rode `make run`{% if event_broker != 'none' %} e `make worker`{% endif %} em terminais separados quando necessário.
-{% else %}
+O `make dev` sobe no Docker só a infraestrutura ({% if use_postgres %}PostgreSQL{% endif %}{% if use_redis %}{% if use_postgres %}, {% endif %}Redis{% endif %}{% if event_broker != 'none' %}{% if use_postgres or use_redis %}, {% endif %}{{ 'Kafka' if event_broker == 'kafka' else 'RabbitMQ' }}{% endif %})
+{%- if use_postgres %}, aplica as migrações{% endif %} e roda a API direto no seu Python, com reload.
+A imagem da aplicação não é construída. Já tem esses serviços rodando? Ajuste as URLs no `.env` e use
+`make dev DOCKER=0`, sem Docker.{% if event_broker != 'none' %} O consumidor de eventos roda com
+`make worker` em outro terminal.{% endif %} Para testar a imagem de produção, use `make up` (mais lento)
+e `make down` para parar tudo.
+{% else -%}
 A API usa armazenamento em memória e roda sem Docker.
 
 ```bash
-make bootstrap    # inicializa Git e resolve dependências
-make run          # inicia a API com reload
+make dev    # instala as dependências, cria o .env e roda a API com reload
 ```
 {% endif %}
+O ambiente do projeto é o `.venv`, gerenciado pelo `uv`; os alvos do `make` sempre o usam, mesmo
+com outro virtualenv ativo. Para rodar uma ferramenta direto, use `uv run` (ex.: `uv run pytest`).
+Na primeira execução o `make bootstrap` (chamado pelo `make dev`) cria o `.env` com um segredo de
+desenvolvimento, e então `make token` já funciona.
+
 Abra a documentação em http://localhost:8000/docs (só em `local`/`test`). Use `make test-unit`
 para feedback rápido (unit, propriedades, API, segurança e contrato OpenAPI) e `make check` para
 lint, tipos, arquitetura, auditoria, testes e cobertura. Para instalar os hooks locais, use
@@ -43,7 +47,7 @@ As rotas de negócio ficam em `/v1` e exigem `Authorization: Bearer <JWT>` com e
 responde `401`, sem escopo `403`, e item de outro usuário `404`. Erros seguem
 `application/problem+json`.
 
-Em `local` e `test`, gere tokens assinados com `APP_AUTH_DEV_SECRET` (veja `.env.example`):
+Em `local` e `test`, gere tokens assinados com o `APP_AUTH_DEV_SECRET` que o `make bootstrap` gravou no `.env`:
 
 ```bash
 TOKEN=$(make -s token sub=alice scopes="items:read items:write")

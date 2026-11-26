@@ -4,15 +4,42 @@ SHELL := /bin/bash
 .SHELLFLAGS := -eu -o pipefail -c
 UV := uv run --frozen
 APP := {{ package_name }}.entrypoints.http.app:create_app
+# Targets always use the project's own .venv (managed by uv), even when another virtualenv is active.
+unexport VIRTUAL_ENV
+{%- if use_postgres or use_redis or event_broker != 'none' %}
+# `make dev DOCKER=0` uses services you already run (URLs in .env) instead of compose.
+DOCKER ?= 1
+INFRA :={% if use_postgres %} postgres{% endif %}{% if use_redis %} redis{% endif %}{% if event_broker != 'none' %} broker{% endif %}
+{%- endif %}
 
 .PHONY: help
 help: ## List targets
-	@grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
+	@if [ -t 1 ]; then on='\033[36m'; off='\033[0m'; else on=; off=; fi; \
+	grep -hE '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' -v on="$$on" -v off="$$off" '{printf "  %s%-12s%s %s\n", on, $$1, off, $$2}'
 
 .PHONY: bootstrap
-bootstrap: ## Initialize Git and install dependencies
+bootstrap: ## Install dependencies into .venv and create .env with a local dev secret
 	@test -e .git || git init -q -b main
 	uv sync --all-groups
+	@test -e .env || { cp .env.example .env \
+		&& printf '\n# Local dev secret created by make bootstrap\n' >> .env \
+		&& echo "APP_AUTH_DEV_SECRET=$$($(UV) python -c 'import secrets; print(secrets.token_hex(32))')" >> .env \
+		&& echo "Created .env with local settings and a dev secret for make token (never commit it)."; }
+
+.PHONY: dev
+dev: bootstrap{% if use_postgres or use_redis or event_broker != 'none' %} infra{% endif %}{% if use_postgres %} migrate{% endif %} ## Start everything for local development; API with reload on http://127.0.0.1:8000/docs
+	$(UV) uvicorn --factory $(APP) --reload
+{%- if use_postgres or use_redis or event_broker != 'none' %}
+
+.PHONY: infra
+infra: ## Start only the infrastructure in Docker; DOCKER=0 skips it
+ifeq ($(DOCKER),1)
+	@command -v docker >/dev/null || { echo "Docker is needed for $(INFRA). Install it, or run your own services, set their URLs in .env and use DOCKER=0." >&2; exit 1; }
+	docker compose up -d --wait $(INFRA)
+else
+	@echo "DOCKER=0: using the service URLs in .env ($(INFRA) must already be running)"
+endif
+{%- endif %}
 
 .PHONY: setup
 setup: bootstrap ## Install dependencies and Git hooks
@@ -54,7 +81,7 @@ test: ## Full suite incl. integration (Docker) with coverage gate
 check: lint typecheck arch audit test ## Everything CI runs: the Definition of Done gate
 
 .PHONY: run
-run: ## Run the API with reload
+run: ## Run only the API with reload (make dev also prepares .env and infrastructure)
 	$(UV) uvicorn --factory $(APP) --reload
 {%- if event_broker != 'none' %}
 
@@ -74,11 +101,11 @@ migration: ## New migration: make migration m="add orders table"
 {%- endif %}
 
 .PHONY: token
-token: ## Dev bearer token (needs APP_AUTH_DEV_SECRET): make token sub=alice scopes="items:read items:write"
+token: ## Dev bearer token (secret created by make bootstrap): make token sub=alice scopes="items:read items:write"
 	$(UV) python scripts/dev_token.py --sub "$(or $(sub),alice)" --scopes "$(or $(scopes),items:read items:write)"
 
 .PHONY: up
-up: ## Start the app and its infrastructure (compose)
+up: ## Run the production image and its infrastructure in Docker (builds the image; slower)
 	docker compose up -d --build --wait
 
 .PHONY: down
