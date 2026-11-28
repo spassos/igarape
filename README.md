@@ -203,6 +203,10 @@ Generated projects record their template revision in `.copier-answers.yml`; run
 4. **Drift check** — `make agents-check` so edits to one agent's files cannot silently diverge.
 5. **Evidence** — pilot comparing agents with and without the guidance, on the same tasks.
 6. **Release** — publish `igarape` on PyPI. ✅
+7. **Architecture governance** — ADRs linked to the checks that enforce them, owned through
+   CODEOWNERS, and a baseline-and-ratchet path for existing repositories.
+
+Detailed open work lives in [`TODO.md`](TODO.md).
 
 ## Contributing
 
