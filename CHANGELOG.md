@@ -5,6 +5,13 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). Security fixes are listed under **Security** with
 their advisory or CVE identifier.
 
+## [0.3.1](https://github.com/spassos/igarape/compare/v0.3.0...v0.3.1) (2026-11-28)
+
+
+### Changed
+
+* track open work in TODO.md and add architecture governance to the roadmap ([24d9aef](https://github.com/spassos/igarape/commit/24d9aef27ddb22250e4a3c428b2cdc352c1a905c))
+
 ## [0.3.0](https://github.com/spassos/igarape/compare/v0.2.2...v0.3.0) (2026-11-26)
 
 
